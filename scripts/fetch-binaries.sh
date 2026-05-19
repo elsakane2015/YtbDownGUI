@@ -14,7 +14,7 @@ OUT="${ROOT_DIR}/src-tauri/binaries"
 mkdir -p "${OUT}"
 
 # Versions — bump these to update bundled binaries.
-YTDLP_VERSION="2025.04.30"           # https://github.com/yt-dlp/yt-dlp/releases
+YTDLP_VERSION="2026.03.17"           # https://github.com/yt-dlp/yt-dlp/releases
 FFMPEG_BUILD="7.1"                    # https://www.osxexperts.net/ (static universal builds)
 
 # --- yt-dlp ----------------------------------------------------------------
