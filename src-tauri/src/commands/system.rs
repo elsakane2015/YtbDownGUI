@@ -20,7 +20,7 @@ pub fn open_url(url: String) -> AppResult<()> {
     {
         Command::new("open")
             .arg(&url)
-            .status()
+            .spawn()
             .map_err(|e| AppError::Other(format!("open url: {e}")))?;
     }
     #[cfg(target_os = "windows")]
@@ -30,14 +30,14 @@ pub fn open_url(url: String) -> AppResult<()> {
         // looks like a quoted string itself.
         Command::new("cmd")
             .args(["/c", "start", "", &url])
-            .status()
+            .spawn()
             .map_err(|e| AppError::Other(format!("start url: {e}")))?;
     }
     #[cfg(target_os = "linux")]
     {
         Command::new("xdg-open")
             .arg(&url)
-            .status()
+            .spawn()
             .map_err(|e| AppError::Other(format!("xdg-open url: {e}")))?;
     }
     Ok(())
@@ -45,31 +45,36 @@ pub fn open_url(url: String) -> AppResult<()> {
 
 /// Open a file or directory in the system file browser
 /// (Finder on macOS, Explorer on Windows, xdg-open on Linux).
+///
+/// All branches use `spawn()` rather than `status()` so we don't block the
+/// IPC thread waiting for the GUI shell to exit — Explorer in particular
+/// can return with exit code 1 long after a successful open, or stay
+/// resident, which made the button feel broken.
 #[tauri::command]
 pub fn open_path(path: String) -> AppResult<()> {
-    let p = Path::new(&path);
-    if !p.exists() {
+    let path = normalize_native_path(&path);
+    if !Path::new(&path).exists() {
         return Err(AppError::Other(format!("path not found: {path}")));
     }
     #[cfg(target_os = "macos")]
     {
         Command::new("open")
             .arg(&path)
-            .status()
+            .spawn()
             .map_err(|e| AppError::Other(format!("open: {e}")))?;
     }
     #[cfg(target_os = "windows")]
     {
         Command::new("explorer.exe")
             .arg(&path)
-            .status()
+            .spawn()
             .map_err(|e| AppError::Other(format!("explorer: {e}")))?;
     }
     #[cfg(target_os = "linux")]
     {
         Command::new("xdg-open")
             .arg(&path)
-            .status()
+            .spawn()
             .map_err(|e| AppError::Other(format!("xdg-open: {e}")))?;
     }
     Ok(())
@@ -80,6 +85,7 @@ pub fn open_path(path: String) -> AppResult<()> {
 /// Linux falls back to opening the parent directory.
 #[tauri::command]
 pub fn reveal_in_finder(path: String) -> AppResult<()> {
+    let path = normalize_native_path(&path);
     let p = Path::new(&path);
     if !p.exists() {
         return Err(AppError::Other(format!("path not found: {path}")));
@@ -89,16 +95,18 @@ pub fn reveal_in_finder(path: String) -> AppResult<()> {
         Command::new("open")
             .arg("-R")
             .arg(&path)
-            .status()
+            .spawn()
             .map_err(|e| AppError::Other(format!("open -R: {e}")))?;
     }
     #[cfg(target_os = "windows")]
     {
         // `/select,<path>` (no space after the comma) tells Explorer to
-        // open the parent dir and highlight the file.
+        // open the parent dir and highlight the file. spawn() — not
+        // status() — because explorer can keep running and we don't
+        // want to block IPC waiting on it.
         Command::new("explorer.exe")
             .arg(format!("/select,{}", path))
-            .status()
+            .spawn()
             .map_err(|e| AppError::Other(format!("explorer /select: {e}")))?;
     }
     #[cfg(target_os = "linux")]
@@ -107,8 +115,25 @@ pub fn reveal_in_finder(path: String) -> AppResult<()> {
         let parent = p.parent().unwrap_or(p);
         Command::new("xdg-open")
             .arg(parent)
-            .status()
+            .spawn()
             .map_err(|e| AppError::Other(format!("xdg-open parent: {e}")))?;
     }
     Ok(())
+}
+
+/// Normalise a path string to the host platform's preferred separator.
+/// yt-dlp on Windows occasionally emits paths with forward slashes (Python
+/// std-lib uses `/` internally on every OS), which Explorer dislikes when
+/// passed to `/select,…`. macOS doesn't care either way; this is a no-op
+/// there. We do this in user-input parsing too so that pasting an
+/// already-tidy Windows path doesn't get double-mangled.
+fn normalize_native_path(path: &str) -> String {
+    #[cfg(target_os = "windows")]
+    {
+        path.replace('/', "\\")
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        path.to_string()
+    }
 }

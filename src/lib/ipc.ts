@@ -275,6 +275,21 @@ export const openUrl = (url: string) => invoke<void>("open_url", { url });
 export const revealInFinder = (path: string) =>
   invoke<void>("reveal_in_finder", { path });
 
+/// Native folder picker. Returns the chosen absolute path, or null if the
+/// user dismissed the dialog. Routed through @tauri-apps/plugin-dialog so
+/// it pops up the system-native chooser on macOS / Windows / Linux.
+export async function pickFolder(
+  defaultPath?: string | null,
+): Promise<string | null> {
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const res = await open({
+    directory: true,
+    multiple: false,
+    defaultPath: defaultPath || undefined,
+  });
+  return typeof res === "string" ? res : null;
+}
+
 // ---- event listeners ----
 
 export const onAccountUpdated = (

@@ -13,6 +13,7 @@ import {
   onProbeStatus,
   onSettingsUpdated,
   openPath,
+  pickFolder,
   probe,
   revealInFinder,
   type DownloadJob,
@@ -310,8 +311,17 @@ export default function DownloadsPage() {
               className="dir-input"
             />
             <button
+              className="secondary small"
+              onClick={async () => {
+                const picked = await pickFolder(outputDir);
+                if (picked) setOutputDir(picked);
+              }}
+            >
+              浏览…
+            </button>
+            <button
               className="icon-btn"
-              title="在访达中打开"
+              title="打开此目录"
               onClick={() => outputDir && openPath(outputDir)}
             >
               <FolderIcon />
@@ -830,8 +840,17 @@ function PlaylistPanel({
           className="dir-input"
         />
         <button
+          className="secondary small"
+          onClick={async () => {
+            const picked = await pickFolder(outputDir);
+            if (picked) setOutputDir(picked);
+          }}
+        >
+          浏览…
+        </button>
+        <button
           className="icon-btn"
-          title="在访达中打开"
+          title="打开此目录"
           onClick={() => outputDir && openPath(outputDir)}
         >
           <FolderIcon />
@@ -1165,7 +1184,7 @@ function JobRow({ job: j }: { job: DownloadJob }) {
           className="secondary small"
           onClick={() => revealInFinder(j.output_path!)}
         >
-          <FolderIcon /> 在访达中显示
+          <FolderIcon /> {revealLabel()}
         </button>
       )}
       {(j.state === "skipped" || (j.state === "failed" && j.output_dir)) && (
@@ -1272,6 +1291,19 @@ function fmtElapsed(s: number): string {
 
 function truncate(s: string, n: number): string {
   return s.length <= n ? s : s.slice(0, n - 1) + "…";
+}
+
+/// Platform-aware label for "reveal this file in the system file manager".
+/// Reads from the `data-platform` attribute that App.tsx writes to <body>
+/// on first mount, so no prop drilling needed.
+function revealLabel(): string {
+  const p =
+    typeof document !== "undefined"
+      ? document.body.dataset.platform
+      : undefined;
+  if (p === "windows") return "在资源管理器中显示";
+  if (p === "linux") return "打开文件夹";
+  return "在访达中显示";
 }
 
 // ---- helpers ----

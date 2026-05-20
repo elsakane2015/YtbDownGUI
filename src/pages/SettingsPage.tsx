@@ -5,6 +5,7 @@ import {
   getSettings,
   openPath,
   openUrl,
+  pickFolder,
   updateSettings,
   type AppVersion,
   type Settings,
@@ -102,8 +103,17 @@ export default function SettingsPage() {
               onBlur={(e) => patch({ download_dir: e.currentTarget.value })}
             />
             <button
+              className="secondary small"
+              onClick={async () => {
+                const picked = await pickFolder(settings.download_dir);
+                if (picked) patch({ download_dir: picked });
+              }}
+            >
+              浏览…
+            </button>
+            <button
               className="icon-btn"
-              title="在访达中打开"
+              title="打开此目录"
               onClick={() => openPath(settings.download_dir).catch(() => {})}
             >
               <FolderIcon />
