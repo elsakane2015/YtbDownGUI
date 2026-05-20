@@ -668,6 +668,15 @@ button.small {
 .update-banner strong {
   font-weight: 600;
 }
+
+.app-version-footer {
+  margin-top: 28px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 11px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  letter-spacing: 0.02em;
+}
 .output-dir label {
   font-size: 13px;
   color: var(--muted);

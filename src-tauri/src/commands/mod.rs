@@ -1,4 +1,5 @@
 pub mod accounts;
+pub mod app_info;
 pub mod download;
 pub mod probe;
 pub mod settings;

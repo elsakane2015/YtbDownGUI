@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { FolderIcon } from "../components/Icons";
 import {
+  appVersion,
   getSettings,
   openPath,
   updateSettings,
+  type AppVersion,
   type Settings,
 } from "../lib/ipc";
 
@@ -25,11 +27,13 @@ const HEIGHT_OPTIONS: { value: string; label: string }[] = [
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [version, setVersion] = useState<AppVersion | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     getSettings().then(setSettings).catch((e) => setToast(String(e)));
+    appVersion().then(setVersion).catch(() => {});
   }, []);
 
   const patch = useCallback(
@@ -79,7 +83,7 @@ export default function SettingsPage() {
       <header className="page-header">
         <h2>设置</h2>
         <p className="muted">
-          所有改动即时保存到 ~/Library/Application Support/com.elsakane2015.ytbdowngui/settings.json
+          所有改动即时保存到 ~/Library/Application Support/com.litotime.ytbdowngui/settings.json
         </p>
       </header>
 
@@ -231,6 +235,13 @@ export default function SettingsPage() {
       </section>
 
       {busy && <div className="hint">保存中…</div>}
+
+      <footer className="app-version-footer">
+        {version
+          ? `YtbDownGUI · v${version.version} (${version.build})`
+          : "YtbDownGUI"}
+      </footer>
+
       {toast && (
         <div className="toast" onClick={() => setToast(null)}>
           {toast}

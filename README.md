@@ -13,7 +13,7 @@ The differentiator from existing yt-dlp wrappers is an **embedded login WebView*
 - **Three-section format picker** — H.264 / VP9 / AV1 codec preference, 480p–4K resolution cap, separate audio codec choice, mp4 / mkv container.
 - **Subtitles** — pick from each video's available languages (manual + YouTube auto-captions independently), choose between sidecar `.srt` files or embedded into the container.
 - **Bundled binaries** — yt-dlp 2026.03.17 (universal) and ffmpeg 7.1.1 ship inside the .app. Zero dependencies on your friend's machine.
-- **In-app yt-dlp updates** — on startup, checks GitHub for newer yt-dlp; if available a blue banner offers "更新" which downloads the new version into `~/Library/Application Support/com.elsakane2015.ytbdowngui/bin/`.
+- **In-app yt-dlp updates** — on startup, checks GitHub for newer yt-dlp; if available a blue banner offers "更新" which downloads the new version into `~/Library/Application Support/com.litotime.ytbdowngui/bin/`.
 - **macOS native** — Apple title bar with traffic lights, system-font, dark-mode follows the system, drag the window from the toolbar.
 - **Persistent state** — job history survives app restarts; settings stored as plain JSON.
 
@@ -70,9 +70,22 @@ bash scripts/fetch-binaries.sh
 pnpm install
 pnpm tauri dev
 
-# Universal release build (output: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg)
+# One-shot release: bumps .buildnumber, builds universal .app + .dmg,
+# patches CFBundleVersion in Info.plist, re-signs ad-hoc, and writes
+# YtbDownGUI_<version>_b<build>_universal.dmg
+bash scripts/release.sh
+
+# (Plain `pnpm tauri build` also works; it just doesn't bump the build
+# number or rename the DMG.)
 pnpm tauri build --target universal-apple-darwin
 ```
+
+### Versioning
+
+Xcode-style. The marketing version lives in `src-tauri/tauri.conf.json`
+(`"version": "0.0.1"`); the build number lives in `.buildnumber` at the
+repo root and is auto-incremented by `scripts/release.sh`. Both surface
+in the **设置** tab footer as `v0.0.1 (002)`.
 
 ## Architecture (one paragraph)
 
@@ -81,7 +94,7 @@ pnpm tauri build --target universal-apple-darwin
 - **yt-dlp** invoked as a sidecar subprocess; output parsed for progress (with `.part`-file polling as a backup because PyInstaller's stdout buffering hides the live progress).
 - **ffmpeg** also a sidecar, located via `--ffmpeg-location` so yt-dlp finds it for merging.
 - **Cookies** captured directly from the embedded login WebView via `WebviewWindow::cookies()` (Tauri 2.3+) and serialized to the [Netscape `cookies.txt` format](http://fileformats.archiveteam.org/wiki/Netscape_cookies.txt) that yt-dlp expects.
-- **Settings + jobs** persisted as plain JSON in `~/Library/Application Support/com.elsakane2015.ytbdowngui/`.
+- **Settings + jobs** persisted as plain JSON in `~/Library/Application Support/com.litotime.ytbdowngui/`.
 
 ## Known limitations
 

@@ -258,6 +258,12 @@ export const onYtdlpUpdateInstalled = (
 ): Promise<UnlistenFn> =>
   listen<string>("ytdlp-update:installed", (e) => cb(e.payload));
 
+// ---- app version ----
+
+export type AppVersion = { version: string; build: string };
+
+export const appVersion = () => invoke<AppVersion>("app_version");
+
 export const openPath = (path: string) => invoke<void>("open_path", { path });
 
 export const revealInFinder = (path: string) =>

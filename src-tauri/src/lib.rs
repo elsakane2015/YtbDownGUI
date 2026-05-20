@@ -91,6 +91,7 @@ pub fn run() {
             commands::system::reveal_in_finder,
             commands::ytdlp_update::check_ytdlp_update,
             commands::ytdlp_update::install_ytdlp_update,
+            commands::app_info::app_version,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
