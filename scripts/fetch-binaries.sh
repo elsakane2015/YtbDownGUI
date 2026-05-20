@@ -25,14 +25,15 @@ FFMPEG_BUILD="7.1"                    # https://www.osxexperts.net/ (static univ
 YTDLP_URL="https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/yt-dlp_macos"
 YTDLP_TMP="${OUT}/.yt-dlp_macos.tmp"
 
-if [[ ! -f "${OUT}/yt-dlp-aarch64-apple-darwin" || ! -f "${OUT}/yt-dlp-x86_64-apple-darwin" ]]; then
+if [[ ! -f "${OUT}/yt-dlp-aarch64-apple-darwin" || ! -f "${OUT}/yt-dlp-x86_64-apple-darwin" || ! -f "${OUT}/yt-dlp-universal-apple-darwin" ]]; then
   echo "[1/2] Downloading yt-dlp ${YTDLP_VERSION}…"
   curl -fL --progress-bar -o "${YTDLP_TMP}" "${YTDLP_URL}"
   chmod +x "${YTDLP_TMP}"
   cp "${YTDLP_TMP}" "${OUT}/yt-dlp-aarch64-apple-darwin"
   cp "${YTDLP_TMP}" "${OUT}/yt-dlp-x86_64-apple-darwin"
+  cp "${YTDLP_TMP}" "${OUT}/yt-dlp-universal-apple-darwin"
   rm -f "${YTDLP_TMP}"
-  echo "  → ${OUT}/yt-dlp-{aarch64,x86_64}-apple-darwin"
+  echo "  → ${OUT}/yt-dlp-{aarch64,x86_64,universal}-apple-darwin"
 else
   echo "[1/2] yt-dlp already present, skipping."
 fi
@@ -86,6 +87,17 @@ if [[ ! -f "${FFMPEG_X86_64}" ]]; then
   echo "  → ${FFMPEG_X86_64}"
 else
   echo "[2/2b] ffmpeg x86_64 already present, skipping."
+fi
+
+# --- ffmpeg universal: lipo'd from the two per-arch builds. Tauri's
+# `--target universal-apple-darwin` looks for binaries with this exact
+# suffix and won't auto-lipo single-arch ones for us.
+FFMPEG_UNIVERSAL="${OUT}/ffmpeg-universal-apple-darwin"
+if [[ ! -f "${FFMPEG_UNIVERSAL}" ]]; then
+  echo "[2/2c] lipo-ing ffmpeg universal binary…"
+  lipo -create "${FFMPEG_AARCH64}" "${FFMPEG_X86_64}" -output "${FFMPEG_UNIVERSAL}"
+  chmod +x "${FFMPEG_UNIVERSAL}"
+  echo "  → ${FFMPEG_UNIVERSAL}"
 fi
 
 # --- summary ---------------------------------------------------------------

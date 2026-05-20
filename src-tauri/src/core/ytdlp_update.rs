@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_shell::{process::CommandEvent, ShellExt};
+use tauri_plugin_shell::process::CommandEvent;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateInfo {
@@ -36,7 +36,17 @@ struct GhAsset {
 /// Run the version check. Emits `ytdlp-update:available` with `UpdateInfo`
 /// when a newer release exists; emits `ytdlp-update:up-to-date` otherwise.
 pub async fn check(app: &AppHandle) -> AppResult<Option<UpdateInfo>> {
-    let current = current_version(app).await.unwrap_or_default();
+    let current = match current_version(app).await {
+        Ok(v) if !v.is_empty() => v,
+        Ok(_) => {
+            eprintln!("[ytdlp-update] current version is empty (sidecar emitted no stdout); skipping check");
+            return Ok(None);
+        }
+        Err(e) => {
+            eprintln!("[ytdlp-update] failed to read current version ({e}); skipping check");
+            return Ok(None);
+        }
+    };
 
     let client = build_http_client(app, Duration::from_secs(15))?;
 
@@ -140,25 +150,41 @@ fn build_http_client(
         .map_err(|e| AppError::Other(format!("reqwest build: {e}")))
 }
 
-/// Resolve the current yt-dlp version by invoking the bundled sidecar with
-/// `--version`. Returns the trimmed first line.
+/// Resolve the current yt-dlp version. Prefers the user-installed (auto-
+/// updated) binary at `$APP_DATA/bin/yt-dlp` over the bundled sidecar so
+/// the "update available" banner doesn't keep firing forever after the
+/// user has already updated. Returns the trimmed first stdout line.
 async fn current_version(app: &AppHandle) -> AppResult<String> {
-    let cmd = app
-        .shell()
-        .sidecar("yt-dlp")
-        .map_err(|e| AppError::Other(format!("sidecar: {e}")))?
-        .args(["--version"]);
+    let cmd = crate::core::download::yt_dlp_command(app)?.args(["--version"]);
     let (mut rx, _child) = cmd
         .spawn()
         .map_err(|e| AppError::Other(format!("spawn: {e}")))?;
     let mut out = String::new();
+    let mut err = String::new();
     while let Some(event) = rx.recv().await {
         match event {
             CommandEvent::Stdout(b) => out.push_str(&String::from_utf8_lossy(&b)),
-            CommandEvent::Stderr(_) => {}
+            CommandEvent::Stderr(b) => err.push_str(&String::from_utf8_lossy(&b)),
             CommandEvent::Terminated(_) => break,
             _ => {}
         }
     }
-    Ok(out.lines().next().unwrap_or("").trim().to_string())
+    // PyInstaller occasionally pushes its banner to stderr; if stdout was
+    // empty (buffer flush quirks) we fall back to scanning stderr for a
+    // version-shaped line.
+    let line = out
+        .lines()
+        .next()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            err.lines()
+                .find(|l| {
+                    l.chars().take(8).all(|c| c.is_ascii_digit() || c == '.')
+                        && l.contains('.')
+                })
+                .map(|s| s.trim().to_string())
+        })
+        .unwrap_or_default();
+    Ok(line)
 }

@@ -1441,13 +1441,3 @@ function fmtDuration(s: number): string {
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
-function stateLabel(s: DownloadJob["state"]): string {
-  return {
-    pending: "等待中",
-    running: "下载中",
-    done: "已完成",
-    failed: "失败",
-    canceled: "已取消",
-    skipped: "已存在（跳过）",
-  }[s];
-}
