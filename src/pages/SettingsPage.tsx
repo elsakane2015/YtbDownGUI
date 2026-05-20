@@ -4,6 +4,7 @@ import {
   appVersion,
   getSettings,
   openPath,
+  openUrl,
   updateSettings,
   type AppVersion,
   type Settings,
@@ -237,9 +238,33 @@ export default function SettingsPage() {
       {busy && <div className="hint">保存中…</div>}
 
       <footer className="app-version-footer">
-        {version
-          ? `YtbDownGUI · v${version.version} (${version.build})`
-          : "YtbDownGUI"}
+        <div>
+          YtbDownGUI
+          {version ? ` · v${version.version} (${version.build})` : ""}
+        </div>
+        <div className="footer-links">
+          <a
+            href="https://litotime.com"
+            onClick={(e) => {
+              e.preventDefault();
+              openUrl("https://litotime.com").catch(() => {});
+            }}
+          >
+            LitoTime
+          </a>
+          <span className="dot">·</span>
+          <a
+            href="https://github.com/elsakane2015/YtbDownGUI"
+            onClick={(e) => {
+              e.preventDefault();
+              openUrl("https://github.com/elsakane2015/YtbDownGUI").catch(
+                () => {},
+              );
+            }}
+          >
+            GitHub
+          </a>
+        </div>
       </footer>
 
       {toast && (

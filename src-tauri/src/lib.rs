@@ -88,6 +88,7 @@ pub fn run() {
             commands::settings::get_settings,
             commands::settings::update_settings,
             commands::system::open_path,
+            commands::system::open_url,
             commands::system::reveal_in_finder,
             commands::ytdlp_update::check_ytdlp_update,
             commands::ytdlp_update::install_ytdlp_update,

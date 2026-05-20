@@ -5,14 +5,15 @@
 # - Build number lives in `.buildnumber` at the repo root and is
 #   auto-incremented every time this script runs (kept 3-digit-zero-padded).
 # - Post-build: patches CFBundleVersion in the .app's Info.plist, re-signs,
-#   then rebuilds the DMG with `<version>_b<build>` in the filename.
+#   then rebuilds the DMG (with an Applications shortcut for drag-install).
+# - Each run lands in its own folder under `releases/v<ver>-b<build>/` so
+#   older builds aren't overwritten.
 #
 # Usage:
 #   bash scripts/release.sh
 #
 # Output:
-#   src-tauri/target/universal-apple-darwin/release/bundle/dmg/
-#     YtbDownGUI_<version>_b<build>_universal.dmg
+#   releases/v<version>-b<build>/YtbDownGUI_<version>_b<build>_universal.dmg
 
 set -euo pipefail
 
@@ -50,28 +51,42 @@ echo "Patched CFBundleVersion = ${BUILD_STR}"
 codesign --force --deep --sign - "${APP}"
 echo "Re-signed ad-hoc"
 
-# --- rebuild DMG with build-number-suffixed name --------------------------
-DMG_DIR="${BUNDLE_DIR}/dmg"
-mkdir -p "${DMG_DIR}"
-# remove any stale dmg from this run
-rm -f "${DMG_DIR}/YtbDownGUI_${VERSION}_universal.dmg"
-DMG_FINAL="${DMG_DIR}/YtbDownGUI_${VERSION}_b${BUILD_STR}_universal.dmg"
+# --- archive folder for this release --------------------------------------
+RELEASE_DIR="${REPO_ROOT}/releases/v${VERSION}-b${BUILD_STR}"
+mkdir -p "${RELEASE_DIR}"
+DMG_FINAL="${RELEASE_DIR}/YtbDownGUI_${VERSION}_b${BUILD_STR}_universal.dmg"
 rm -f "${DMG_FINAL}"
+
+# --- stage the DMG contents with /Applications symlink so the drag-install
+# UX works (when the user opens the DMG they see both YtbDownGUI.app and
+# a shortcut to /Applications, and drag the icon between them).
+STAGE=$(mktemp -d "${TMPDIR:-/tmp}/ytbdowngui-dmg.XXXXXX")
+trap 'rm -rf "${STAGE}"' EXIT
+ditto "${APP}" "${STAGE}/YtbDownGUI.app"
+ln -s /Applications "${STAGE}/Applications"
 
 hdiutil create \
   -volname "YtbDownGUI ${VERSION}" \
-  -srcfolder "${APP}" \
+  -srcfolder "${STAGE}" \
   -ov \
   -format UDZO \
   "${DMG_FINAL}" >/dev/null
 echo "DMG: ${DMG_FINAL}"
+
+# Also drop the unsigned .app folder next to it for reference (handy when
+# debugging or re-signing without rebuilding).
+ditto "${APP}" "${RELEASE_DIR}/YtbDownGUI.app" 2>/dev/null || true
+
+# Tauri's own bundle/dmg output (without the Applications shortcut) is left
+# in place — it's the throwaway version the bundler always produces. Our
+# canonical artifact is the one under releases/.
 
 # --- summary --------------------------------------------------------------
 echo
 echo "==========================================="
 echo "  YtbDownGUI v${VERSION} (Build ${BUILD_STR})"
 echo "==========================================="
-echo "  .app : ${APP}"
+echo "  .app : ${RELEASE_DIR}/YtbDownGUI.app"
 echo "  .dmg : ${DMG_FINAL}"
 echo "  size : $(du -h "${DMG_FINAL}" | awk '{print $1}')"
 echo "  sha  : $(shasum -a 256 "${DMG_FINAL}" | awk '{print $1}')"

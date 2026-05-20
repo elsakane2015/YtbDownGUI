@@ -676,6 +676,26 @@ button.small {
   font-size: 11px;
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   letter-spacing: 0.02em;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+.footer-links {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-family: -apple-system, "SF Pro Text", "PingFang SC", sans-serif;
+}
+.footer-links a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.footer-links a:hover {
+  text-decoration: underline;
+}
+.footer-links .dot {
+  opacity: 0.5;
 }
 .output-dir label {
   font-size: 13px;

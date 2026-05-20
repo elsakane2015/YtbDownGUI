@@ -40,6 +40,9 @@
       "binaries/yt-dlp",
       "binaries/ffmpeg"
     ],
+    "resources": [
+      "Credits.rtf"
+    ],
     "macOS": {
       "signingIdentity": "-"
     }

@@ -266,6 +266,8 @@ export const appVersion = () => invoke<AppVersion>("app_version");
 
 export const openPath = (path: string) => invoke<void>("open_path", { path });
 
+export const openUrl = (url: string) => invoke<void>("open_url", { url });
+
 export const revealInFinder = (path: string) =>
   invoke<void>("reveal_in_finder", { path });
 

@@ -19,6 +19,9 @@ src-tauri/binaries/
 src-tauri/WixTools/
 src-tauri/.cargo/
 
+# Release artifacts — DMGs are uploaded to GitHub Releases, not committed
+releases/
+
 # macOS
 .DS_Store
 *.swp

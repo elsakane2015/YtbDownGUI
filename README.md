@@ -1,25 +1,27 @@
 # YtbDownGUI
 
-macOS GUI for [yt-dlp](https://github.com/yt-dlp/yt-dlp) + [ffmpeg](https://ffmpeg.org/), built with Tauri v2 (Rust + React).
+> **中文** · [English](./README.en.md)
 
-The differentiator from existing yt-dlp wrappers is an **embedded login WebView**: open a window inside the app, log into the target site as you normally would in a browser, and the app picks up the session cookies and feeds them to yt-dlp. No more manually exporting `cookies.txt`.
+基于 [yt-dlp](https://github.com/yt-dlp/yt-dlp) + [ffmpeg](https://ffmpeg.org/) 的 macOS GUI 视频下载器，用 Tauri v2 (Rust + React) 构建。
 
-> ⚠️ Personal-use tool for downloading content you have the right to access. Respect the site's terms of service and the creators' rights.
+它跟现有的 yt-dlp 命令行包装最大的不同是 **内嵌 WebView 登录**：在 App 内开一个窗口，像在浏览器里一样登录目标网站，App 自动接管 session cookies 喂给 yt-dlp。不需要再手动导出 `cookies.txt` 了。
 
-## Features
+> ⚠️ 自用工具。仅下载你有权访问的内容，请尊重网站服务条款和创作者权益。
 
-- **Single video** — paste URL, probe, pick quality (combined / video+audio split / audio-only), pick subtitle languages, download.
-- **Playlist / channel batch** — paste a playlist or channel URL, filter entries (date range / keyword / max rows), tick the ones you want, apply a unified quality preset, download all at once.
-- **Three-section format picker** — H.264 / VP9 / AV1 codec preference, 480p–4K resolution cap, separate audio codec choice, mp4 / mkv container.
-- **Subtitles** — pick from each video's available languages (manual + YouTube auto-captions independently), choose between sidecar `.srt` files or embedded into the container.
-- **Bundled binaries** — yt-dlp 2026.03.17 (universal) and ffmpeg 7.1.1 ship inside the .app. Zero dependencies on your friend's machine.
-- **In-app yt-dlp updates** — on startup, checks GitHub for newer yt-dlp; if available a blue banner offers "更新" which downloads the new version into `~/Library/Application Support/com.litotime.ytbdowngui/bin/`.
-- **macOS native** — Apple title bar with traffic lights, system-font, dark-mode follows the system, drag the window from the toolbar.
-- **Persistent state** — job history survives app restarts; settings stored as plain JSON.
+## 功能特性
 
-### Supported sites (login)
+- **单视频下载** — 粘贴 URL → 分析 → 选画质（组合流 / 视频+音频分选 / 仅音频）→ 选字幕 → 下载。
+- **播放列表 / 频道批量下载** — 粘贴 playlist 或 channel URL → 过滤条目（日期范围 / 关键词 / 条目上限）→ 复选框勾选 → 应用统一画质 → 整批下载。
+- **三段式画质选择** — H.264 / VP9 / AV1 编码偏好、480p–4K 分辨率上限、音频编码独立选择、mp4 / mkv 容器。
+- **字幕** — 每个视频探测后展示可用语言列表（手动字幕 + YouTube 自动字幕独立勾选），可选独立 `.srt` 文件或嵌入到容器。
+- **二进制内置** — 包内打包 yt-dlp 2026.03.17（universal）+ ffmpeg 7.1.1，朋友机器零依赖。
+- **App 内 yt-dlp 更新** — 启动时检查 GitHub 是否有新版，有则弹蓝色横幅"更新"按钮，下载到 `~/Library/Application Support/com.litotime.ytbdowngui/bin/`。
+- **macOS 原生风格** — 交通灯标题栏、SF 字体、跟随系统亮暗模式、标题栏可拖动。
+- **状态持久化** — 任务列表跨 App 重启保留；设置以 JSON 文件保存。
 
-| Site | URL pattern | Marker cookie |
+### 支持的登录站点
+
+| 站点 | URL 模式 | Marker cookie |
 |---|---|---|
 | YouTube | `youtube.com`, `youtu.be` | `SAPISID` |
 | Bilibili | `bilibili.com`, `b23.tv` | `SESSDATA` |
@@ -29,33 +31,33 @@ The differentiator from existing yt-dlp wrappers is an **embedded login WebView*
 | TikTok | `tiktok.com` | `sessionid` |
 | Pinterest | `pinterest.com`, `pin.it` | `_pinterest_sess` |
 
-Public content on these sites (and any of the [1000+ sites yt-dlp supports](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)) works as a guest without login. Login is only needed for: high-resolution YouTube, login-walled Bilibili content, age/sensitive-restricted tweets, region-locked TikTok, etc.
+这些站点的公开内容（以及 [yt-dlp 支持的 1000+ 站点](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)）以游客身份就可以下载。登录只在以下场景需要：YouTube 高清晰度、Bilibili 登录墙内容、推特敏感内容/年龄限制、TikTok 区域锁等。
 
-## Install (for friends)
+## 安装（给朋友看）
 
-1. Download the `.dmg` from the [Releases](https://github.com/elsakane2015/YtbDownGUI/releases) page.
-2. Open the `.dmg`, drag `YtbDownGUI.app` to `Applications`.
-3. Open the app. On macOS Sequoia 15.1+ you'll see "已损坏，无法打开" or "无法验证此 App 是否包含恶意软件".
-4. Open Terminal and run:
+1. 从 [Releases](https://github.com/elsakane2015/YtbDownGUI/releases) 页面下载 `.dmg`。
+2. 双击 `.dmg`，把 `YtbDownGUI.app` 拖到 `Applications` 文件夹。
+3. 打开 App。macOS Sequoia 15.1+ 可能会提示「已损坏，无法打开」或「无法验证此 App 是否包含恶意软件」。
+4. 打开"终端"运行下面这条命令一次：
    ```bash
    xattr -dr com.apple.quarantine /Applications/YtbDownGUI.app
    ```
-5. Open the app again — it should launch normally.
+5. 再次打开应该正常启动。
 
-> The app is ad-hoc signed (no Apple Developer ID). The quarantine removal is a one-time step macOS requires for any app from outside the App Store.
+> App 用的是 ad-hoc 签名（没有 Apple Developer ID 公证）。这条 `xattr` 是 macOS 对 App Store 之外的应用首次打开时的一次性要求。
 
-## First-run setup
+## 首次使用
 
-1. Open the **设置** tab. Pick a download folder, default quality, optional proxy.
-2. Open the **账号** tab. Click **登录** next to the site you want to download from. A login window opens; sign in normally. Once the site's session cookie is detected the window auto-closes and your cookies are saved.
-3. Open the **下载** tab. Paste a URL. Click **分析**. Pick quality + subtitles. Click **下载**.
+1. 打开 **设置** tab。设置下载目录、默认画质、（可选）代理。
+2. 打开 **账号** tab。点击你要下载的站点右边的 **登录** 按钮。弹出登录窗口，正常登录站点。检测到 session cookie 后窗口自动关闭，cookies 已保存。
+3. 打开 **下载** tab。粘贴 URL → 点 **分析** → 选画质 + 字幕 → 点 **下载**。
 
-The `.mp4` (or whatever container you picked) lands in your download folder. Each task row has an **在访达中显示** button to jump straight to it.
+文件落在你设置的下载目录里。每个任务右侧有 **在访达中显示** 按钮直接跳过去。
 
-## Build from source
+## 从源码构建
 
 ```bash
-# Prereqs
+# 依赖
 brew install rust node pnpm
 rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
@@ -63,46 +65,51 @@ rustup target add aarch64-apple-darwin x86_64-apple-darwin
 git clone https://github.com/elsakane2015/YtbDownGUI.git
 cd YtbDownGUI
 
-# Fetch the bundled sidecar binaries (yt-dlp + ffmpeg per arch)
+# 拉取内置 sidecar 二进制（yt-dlp + ffmpeg 各架构 + universal）
 bash scripts/fetch-binaries.sh
 
-# Install JS deps + run dev
+# 安装 JS 依赖 + 启动 dev
 pnpm install
 pnpm tauri dev
 
-# One-shot release: bumps .buildnumber, builds universal .app + .dmg,
-# patches CFBundleVersion in Info.plist, re-signs ad-hoc, and writes
-# YtbDownGUI_<version>_b<build>_universal.dmg
+# 正式 release：自动 .buildnumber +1，构建 universal .app + .dmg，
+# 修补 CFBundleVersion，ad-hoc 重签名，输出到
+# releases/v<version>-b<build>/ 文件夹（旧版本保留不覆盖）
 bash scripts/release.sh
 
-# (Plain `pnpm tauri build` also works; it just doesn't bump the build
-# number or rename the DMG.)
+# （也可以直接跑 pnpm tauri build；只是不会自增 build 号，DMG 也不会带 build 编号）
 pnpm tauri build --target universal-apple-darwin
 ```
 
-### Versioning
+### 版本号体系
 
-Xcode-style. The marketing version lives in `src-tauri/tauri.conf.json`
-(`"version": "0.0.1"`); the build number lives in `.buildnumber` at the
-repo root and is auto-incremented by `scripts/release.sh`. Both surface
-in the **设置** tab footer as `v0.0.1 (002)`.
+Xcode 风格的 marketing version + build number。
+- **marketing version** 在 `src-tauri/tauri.conf.json` 的 `"version": "0.0.1"` 字段。
+- **build number** 在仓库根目录 `.buildnumber` 文件，由 `scripts/release.sh` 自动递增（保持 3 位零填充：`001`、`002`、…）。
+- 两者在 **设置** tab 底部以 `v0.0.1 (002)` 形式显示。
+- macOS 应用菜单 → 关于 YtbDownGUI 也能看到同样的版本号 + LitoTime / GitHub 超链接。
 
-## Architecture (one paragraph)
+## 架构（一段话说完）
 
-- **Tauri v2** for window + IPC + sidecar binary plumbing.
-- **React + Vite + TypeScript** frontend, hand-rolled to feel like a macOS app (no Material-y component library).
-- **yt-dlp** invoked as a sidecar subprocess; output parsed for progress (with `.part`-file polling as a backup because PyInstaller's stdout buffering hides the live progress).
-- **ffmpeg** also a sidecar, located via `--ffmpeg-location` so yt-dlp finds it for merging.
-- **Cookies** captured directly from the embedded login WebView via `WebviewWindow::cookies()` (Tauri 2.3+) and serialized to the [Netscape `cookies.txt` format](http://fileformats.archiveteam.org/wiki/Netscape_cookies.txt) that yt-dlp expects.
-- **Settings + jobs** persisted as plain JSON in `~/Library/Application Support/com.litotime.ytbdowngui/`.
+- **Tauri v2** 处理窗口、IPC、sidecar 二进制管理。
+- **React + Vite + TypeScript** 前端，手写 CSS 模拟 macOS 原生风格（不上 Material 类组件库）。
+- **yt-dlp** 作为 sidecar 子进程调用，解析输出获取进度（PyInstaller stdout 缓冲过于顽固，所以用轮询 `.part` 文件大小作为可靠的进度来源）。
+- **ffmpeg** 也是 sidecar，通过 `--ffmpeg-location` 告诉 yt-dlp 合并视频音频时去哪儿找它。
+- **Cookies** 直接通过 `WebviewWindow::cookies()` API（Tauri 2.3+）从内嵌登录窗口提取，按 [Netscape `cookies.txt` 格式](http://fileformats.archiveteam.org/wiki/Netscape_cookies.txt) 序列化喂给 yt-dlp。
+- **设置 + 任务历史** 以 JSON 文件持久化在 `~/Library/Application Support/com.litotime.ytbdowngui/`。
 
-## Known limitations
+## 已知限制
 
-- **No DRM**. Anything wrapped in Widevine / FairPlay (Tencent Video VIP movies, Netflix, etc.) can't be downloaded by any yt-dlp-based tool. This isn't a fixable bug.
-- **WKWebView vs Google's "browser not secure"** — Google may block sign-in inside the embedded WebView. If it does, log into YouTube via Safari and the cookies are usable through yt-dlp's `--cookies-from-browser safari` (not yet wired through the UI).
-- **Live progress is via file polling**, not yt-dlp's stdout. yt-dlp_macos is a PyInstaller bundle whose stdout is block-buffered on non-TTYs, and neither `PYTHONUNBUFFERED` nor `script` PTY wrapping fixes it. File polling sees the `.part` file grow and gives a faithful percent + speed.
-- **Apple Silicon required for ad-hoc signing on Sequoia 15.1+** — Intel Macs still work but the OS gate is stricter.
+- **不支持 DRM 内容**。任何被 Widevine / FairPlay 加密的内容（腾讯 VIP 影视、Netflix 等）任何 yt-dlp 类工具都下不了。这是底层限制，不是 bug。
+- **WKWebView 偶尔被 Google 拦"不安全浏览器"** — 万一在 App 内登录不了 YouTube，可以先在 Safari 里登录，等后续版本支持 `--cookies-from-browser safari` 兜底（暂时还没接入 UI）。
+- **进度条数据来自文件轮询而不是 yt-dlp 实时进度**。yt-dlp_macos 是 PyInstaller 打包的，stdout 在非 TTY 下深度块缓冲，`PYTHONUNBUFFERED` / `script` PTY 都救不了。轮询 `.part` 文件大小可以给出准确的百分比和速度，但比 yt-dlp 原生进度晚几百毫秒。
+- **macOS Sequoia 15.1+ 强制至少 ad-hoc 签名才能开**。Intel Mac 也可以跑 universal 包，但 OS 的拦截更严格一点。
 
-## License
+## 许可证
 
-TBD. The bundled `yt-dlp` is [Unlicense](https://github.com/yt-dlp/yt-dlp/blob/master/LICENSE); `ffmpeg` is LGPL/GPL depending on build. The app code itself is currently unlicensed (all rights reserved) — open an issue if you'd like a license.
+待定。内置的 `yt-dlp` 是 [Unlicense](https://github.com/yt-dlp/yt-dlp/blob/master/LICENSE)；`ffmpeg` 按编译版本不同是 LGPL/GPL。本仓库 App 代码目前未声明许可（all rights reserved）—— 需要补 License 的话开 issue。
+
+## 链接
+
+- 作者：[LitoTime](https://litotime.com)
+- 仓库：[github.com/elsakane2015/YtbDownGUI](https://github.com/elsakane2015/YtbDownGUI)
