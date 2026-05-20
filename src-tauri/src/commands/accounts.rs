@@ -84,7 +84,5 @@ pub fn export_cookies_netscape(app: AppHandle, site_id: String) -> AppResult<Str
 }
 
 fn app_data_dir(app: &AppHandle) -> AppResult<PathBuf> {
-    app.path()
-        .app_data_dir()
-        .map_err(|e| AppError::Other(format!("app_data_dir: {e}")))
+    crate::core::paths::data_dir(app)
 }

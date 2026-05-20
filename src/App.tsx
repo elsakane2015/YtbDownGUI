@@ -4,6 +4,7 @@ import DownloadsPage from "./pages/DownloadsPage";
 import AccountsPage from "./pages/AccountsPage";
 import SettingsPage from "./pages/SettingsPage";
 import {
+  appVersion,
   installYtdlpUpdate,
   onYtdlpUpdateAvailable,
   onYtdlpUpdateInstalled,
@@ -23,6 +24,19 @@ function App() {
   const [tab, setTab] = useState<Tab>("downloads");
   const [ytdlpUpdate, setYtdlpUpdate] = useState<YtdlpUpdateInfo | null>(null);
   const [updatingYtdlp, setUpdatingYtdlp] = useState(false);
+  const [platform, setPlatform] = useState<string>("");
+
+  // Tag <body> with the OS so CSS can branch (macOS overlay-title-bar
+  // padding, traffic-light spacing, etc.) without sprinkling JS conditions
+  // through every rule.
+  useEffect(() => {
+    appVersion()
+      .then((v) => {
+        setPlatform(v.platform);
+        document.body.dataset.platform = v.platform;
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const unAvail = onYtdlpUpdateAvailable((info) => setYtdlpUpdate(info));
@@ -74,6 +88,8 @@ function App() {
     });
   };
 
+  const isMacOS = platform === "macos";
+
   return (
     <main className="app">
       <div
@@ -81,7 +97,7 @@ function App() {
         onMouseDown={handleTitlebarMouseDown}
         onDoubleClick={handleTitlebarDoubleClick}
       >
-        <div className="titlebar-drag" />
+        {isMacOS && <div className="titlebar-drag" />}
         <nav className="tabs">
           {NAV.map((n) => (
             <button

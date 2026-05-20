@@ -3,6 +3,7 @@ mod core;
 mod error;
 
 use crate::core::download::QueueManager;
+use crate::core::paths;
 use crate::core::settings::SettingsStore;
 use std::time::Duration;
 use tauri::Manager;
@@ -12,7 +13,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            let data_dir = app.path().app_data_dir()?;
+            let data_dir = paths::data_dir(&app.handle()).map_err(|e| e.to_string())?;
             let settings = SettingsStore::load(&data_dir).map_err(|e| e.to_string())?;
             let concurrency = settings.get().max_concurrency;
             app.manage(settings);
@@ -31,7 +32,7 @@ pub fn run() {
                 tauri::async_runtime::spawn(async move {
                     loop {
                         tokio::time::sleep(Duration::from_secs(5)).await;
-                        if let Ok(dir) = app_handle.path().app_data_dir() {
+                        if let Ok(dir) = paths::data_dir(&app_handle) {
                             let queue = app_handle.state::<QueueManager>();
                             let _ = queue.persist_to_disk(&dir);
                         }
@@ -63,7 +64,7 @@ pub fn run() {
             // so nothing is lost between the 5-second autosave ticks.
             if let tauri::WindowEvent::Destroyed = event {
                 let app_handle = window.app_handle().clone();
-                if let Ok(dir) = app_handle.path().app_data_dir() {
+                if let Ok(dir) = paths::data_dir(&app_handle) {
                     let queue = app_handle.state::<QueueManager>();
                     let _ = queue.persist_to_disk(&dir);
                 }

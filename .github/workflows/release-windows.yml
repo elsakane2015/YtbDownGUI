@@ -1,0 +1,152 @@
+name: Release · Windows
+
+on:
+  # Manual trigger from the Actions tab — pick a tag/branch to build from.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to attach the zip to (e.g. v0.0.1-b005). Leave empty to just publish an artifact."
+        required: false
+        default: ""
+
+  # Auto-build whenever a release tag is pushed (e.g. `v0.0.1-b005`). The
+  # resulting zip is uploaded as a workflow artifact AND attached to the
+  # matching GitHub Release if one exists.
+  push:
+    tags:
+      - "v*-b*"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # needed for uploading to releases
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read marketing version + build number
+        id: ver
+        shell: pwsh
+        run: |
+          $cfg = Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json
+          $version = $cfg.version
+          $build = (Get-Content .buildnumber).Trim()
+          "version=$version" | Out-File -Append $env:GITHUB_OUTPUT
+          "build=$build"     | Out-File -Append $env:GITHUB_OUTPUT
+          Write-Host "version=$version  build=$build"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install JS deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Fetch sidecar binaries (yt-dlp + ffmpeg)
+        shell: pwsh
+        run: pwsh scripts/fetch-binaries-windows.ps1
+
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - name: Build (no installer bundles — we ship a portable zip)
+        run: pnpm tauri build --target x86_64-pc-windows-msvc --bundles app
+
+      - name: Stage portable bundle
+        id: stage
+        shell: pwsh
+        run: |
+          $version = "${{ steps.ver.outputs.version }}"
+          $build = "${{ steps.ver.outputs.build }}"
+          $stage = "stage/YtbDownGUI"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          $appDir = "src-tauri/target/x86_64-pc-windows-msvc/release"
+          # Main exe
+          Copy-Item "$appDir/ytbdowngui.exe" "$stage/YtbDownGUI.exe"
+          # Sidecar binaries (bundled by Tauri end up named after the
+          # target triple inside the release dir; copy bare names into
+          # the zip so the runtime locator finds them).
+          Get-ChildItem $appDir -Filter "yt-dlp*.exe" | ForEach-Object {
+              Copy-Item $_.FullName "$stage/yt-dlp.exe"
+          }
+          Get-ChildItem $appDir -Filter "ffmpeg*.exe" | ForEach-Object {
+              Copy-Item $_.FullName "$stage/ffmpeg.exe"
+          }
+          # WebView2Loader.dll lives next to the .exe; bring it along.
+          if (Test-Path "$appDir/WebView2Loader.dll") {
+              Copy-Item "$appDir/WebView2Loader.dll" "$stage/"
+          }
+          # Resources (Credits.rtf etc) — purely cosmetic on Windows but
+          # keeps file layout consistent across platforms.
+          if (Test-Path "$appDir/resources") {
+              Copy-Item -Recurse "$appDir/resources" "$stage/"
+          }
+          # Portable mode flag — presence triggers <exe-dir>/data/
+          "便携模式开关：删除此文件可改用 %APPDATA% 系统目录存储数据。`r`nPortable-mode flag: delete this file to fall back to the standard %APPDATA% location.`r`n" |
+              Out-File -Encoding utf8 "$stage/portable.txt"
+          # Short readme
+          @"
+          YtbDownGUI v$version (Build $build) · Windows Portable
+
+          1. 解压后直接双击 YtbDownGUI.exe 运行。
+          2. 首次启动如 Windows SmartScreen 拦截，点 "更多信息" → "仍要运行"。
+          3. 设置 / cookies / 任务历史 默认存放在本目录下的 data/ 文件夹（便携模式）。
+             删除 portable.txt 可切换到系统 %APPDATA% 目录。
+
+          1. Unzip and double-click YtbDownGUI.exe.
+          2. If Windows SmartScreen warns, click "More info" -> "Run anyway".
+          3. Settings/cookies/job history live in the local data/ folder by default
+             (portable mode). Delete portable.txt to fall back to %APPDATA%.
+          "@ | Out-File -Encoding utf8 "$stage/README.txt"
+
+          # Zip it
+          $zipName = "YtbDownGUI-$version-b$build-windows-x64.zip"
+          Push-Location stage
+          Compress-Archive -Path YtbDownGUI -DestinationPath ../$zipName -Force
+          Pop-Location
+          $sha = (Get-FileHash $zipName -Algorithm SHA256).Hash
+          "zip=$zipName" | Out-File -Append $env:GITHUB_OUTPUT
+          "sha=$sha"     | Out-File -Append $env:GITHUB_OUTPUT
+          Write-Host "Built $zipName  sha256=$sha"
+
+      - name: Upload as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.stage.outputs.zip }}
+          path: ${{ steps.stage.outputs.zip }}
+
+      - name: Attach to release (if tag exists)
+        if: github.event_name == 'push' || inputs.tag != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = if ("${{ github.event_name }}" -eq "push") {
+            "${{ github.ref_name }}"
+          } else {
+            "${{ inputs.tag }}"
+          }
+          if (-not $tag) {
+            Write-Host "No tag — skipping release attach"
+            exit 0
+          }
+          $zip = "${{ steps.stage.outputs.zip }}"
+          Write-Host "Uploading $zip to release $tag"
+          gh release upload $tag $zip --clobber

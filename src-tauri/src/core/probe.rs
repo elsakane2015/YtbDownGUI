@@ -414,11 +414,7 @@ fn friendly_probe_status(line: &str) -> Option<String> {
 }
 
 fn prepare_cookies(app: &AppHandle, site_id: &str) -> AppResult<PathBuf> {
-    use tauri::Manager;
-    let data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::Other(format!("app_data_dir: {e}")))?;
+    let data_dir = crate::core::paths::data_dir(app)?;
     let stored = cookies::load(&data_dir, site_id)?;
     let tmp = data_dir.join("tmp");
     std::fs::create_dir_all(&tmp)?;

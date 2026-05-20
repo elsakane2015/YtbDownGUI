@@ -1007,10 +1007,7 @@ fn fail(inner: &Inner, app: &AppHandle, id: &str, msg: &str) {
 }
 
 fn prepare_cookies(app: &AppHandle, site_id: &str) -> AppResult<PathBuf> {
-    let data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::Other(format!("app_data_dir: {e}")))?;
+    let data_dir = crate::core::paths::data_dir(app)?;
     let stored = cookies::load(&data_dir, site_id)?;
     let tmp = data_dir.join("tmp");
     std::fs::create_dir_all(&tmp)?;
@@ -1035,8 +1032,13 @@ fn bundled_ytdlp_path(app: &AppHandle) -> AppResult<PathBuf> {
 pub fn yt_dlp_command(
     app: &AppHandle,
 ) -> AppResult<tauri_plugin_shell::process::Command> {
-    if let Ok(dir) = app.path().app_data_dir() {
-        let user_bin = dir.join("bin").join("yt-dlp");
+    if let Ok(dir) = crate::core::paths::data_dir(app) {
+        let bin_name = if cfg!(target_os = "windows") {
+            "yt-dlp.exe"
+        } else {
+            "yt-dlp"
+        };
+        let user_bin = dir.join("bin").join(bin_name);
         if user_bin.exists() {
             return Ok(app
                 .shell()
@@ -1052,19 +1054,18 @@ pub fn yt_dlp_command(
 /// invoke the sidecar through a wrapper (like `/usr/bin/script` for PTY) or
 /// pass it as an argument (yt-dlp's --ffmpeg-location).
 fn bundled_sidecar_path(app: &AppHandle, name: &str) -> AppResult<PathBuf> {
-    let triple = std::env::consts::ARCH;
-    let suffix = match triple {
-        "aarch64" => "aarch64-apple-darwin",
-        "x86_64" => "x86_64-apple-darwin",
-        _ => "aarch64-apple-darwin",
+    let triple_name = crate::core::paths::sidecar_filename(name);
+    let bare_name = if cfg!(target_os = "windows") {
+        format!("{name}.exe")
+    } else {
+        name.to_string()
     };
-    // Bundled production layout: alongside the main app binary in MacOS/.
+
+    // Bundled production layout: alongside the main app binary
+    // (Contents/MacOS/ on macOS; same dir as the .exe on Windows).
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            for c in [
-                dir.join(format!("{name}-{suffix}")),
-                dir.join(name),
-            ] {
+            for c in [dir.join(&triple_name), dir.join(&bare_name)] {
                 if c.exists() {
                     return Ok(c);
                 }
@@ -1072,18 +1073,13 @@ fn bundled_sidecar_path(app: &AppHandle, name: &str) -> AppResult<PathBuf> {
         }
     }
     // Dev fallback: src-tauri/binaries/
-    let dev = std::env::current_dir()?
-        .join("binaries")
-        .join(format!("{name}-{suffix}"));
+    let dev = std::env::current_dir()?.join("binaries").join(&triple_name);
     if dev.exists() {
         return Ok(dev);
     }
     // Last-resort: resource_dir (older layouts).
     if let Ok(resource_dir) = app.path().resource_dir() {
-        for c in [
-            resource_dir.join(format!("{name}-{suffix}")),
-            resource_dir.join(name),
-        ] {
+        for c in [resource_dir.join(&triple_name), resource_dir.join(&bare_name)] {
             if c.exists() {
                 return Ok(c);
             }

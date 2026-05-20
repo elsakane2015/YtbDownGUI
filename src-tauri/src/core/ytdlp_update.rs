@@ -66,11 +66,22 @@ pub async fn check(app: &AppHandle) -> AppResult<Option<UpdateInfo>> {
         .await
         .map_err(|e| AppError::Other(format!("github json: {e}")))?;
 
+    // Per-OS release-asset name: yt-dlp ships separate Windows / macOS /
+    // Linux builds on every release.
+    let asset_name = if cfg!(target_os = "windows") {
+        "yt-dlp.exe"
+    } else if cfg!(target_os = "macos") {
+        "yt-dlp_macos"
+    } else {
+        "yt-dlp"
+    };
     let asset = release
         .assets
         .iter()
-        .find(|a| a.name == "yt-dlp_macos")
-        .ok_or_else(|| AppError::Other("no yt-dlp_macos asset in latest release".into()))?;
+        .find(|a| a.name == asset_name)
+        .ok_or_else(|| {
+            AppError::Other(format!("no {asset_name} asset in latest release"))
+        })?;
 
     if release.tag_name == current {
         let _ = app.emit("ytdlp-update:up-to-date", &current);
@@ -90,13 +101,14 @@ pub async fn check(app: &AppHandle) -> AppResult<Option<UpdateInfo>> {
 /// Download the asset to `$APP_DATA/bin/yt-dlp` and make it executable.
 /// On the next run, the binary manager prefers this path over the sidecar.
 pub async fn install(app: &AppHandle, info: &UpdateInfo) -> AppResult<PathBuf> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::Other(format!("app_data_dir: {e}")))?
-        .join("bin");
+    let dir = crate::core::paths::data_dir(app)?.join("bin");
     std::fs::create_dir_all(&dir)?;
-    let out_path = dir.join("yt-dlp");
+    let bin_name = if cfg!(target_os = "windows") {
+        "yt-dlp.exe"
+    } else {
+        "yt-dlp"
+    };
+    let out_path = dir.join(bin_name);
 
     let client = build_http_client(app, Duration::from_secs(300))?;
     let resp = client

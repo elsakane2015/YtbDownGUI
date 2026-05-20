@@ -77,7 +77,14 @@ body,
 .tabs {
   display: flex;
   gap: 4px;
-  padding: 6px 12px 8px 88px; /* leave room for traffic lights on the left */
+  padding: 6px 12px 8px 12px;
+}
+/* On macOS the title bar is set to "Overlay" mode which paints the
+   traffic-light buttons over the content area, so the tabs need a 76px
+   left gutter to avoid colliding with them. On Windows the title bar is
+   native and sits above the content, so no gutter is needed. */
+body[data-platform="macos"] .tabs {
+  padding-left: 88px;
 }
 
 .tab {

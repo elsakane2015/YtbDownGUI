@@ -260,7 +260,11 @@ export const onYtdlpUpdateInstalled = (
 
 // ---- app version ----
 
-export type AppVersion = { version: string; build: string };
+export type AppVersion = {
+  version: string;
+  build: string;
+  platform: string; // "macos" | "windows" | "linux"
+};
 
 export const appVersion = () => invoke<AppVersion>("app_version");
 

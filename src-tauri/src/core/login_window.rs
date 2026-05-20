@@ -147,7 +147,7 @@ fn spawn_watcher(app: AppHandle, site_id: String) {
             }
 
             let stored: Vec<StoredCookie> = cookies.into_iter().map(cookie_to_stored).collect();
-            let data_dir = match app.path().app_data_dir() {
+            let data_dir = match crate::core::paths::data_dir(&app) {
                 Ok(p) => p,
                 Err(e) => {
                     eprintln!("[login:{site_id}] no app_data_dir: {e}");
