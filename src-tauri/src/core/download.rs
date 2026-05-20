@@ -2,7 +2,7 @@
 //! running yt-dlp as a child process and streaming progress back to the UI
 //! via Tauri events.
 
-use crate::core::{cookies, sites};
+use crate::core::{cookies, settings::SettingsStore, sites};
 use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
@@ -129,7 +129,7 @@ pub struct EnqueueBatchRequest {
 
 // --- job state (server-side authoritative) --------------------------------
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum JobState {
     Pending,
@@ -140,7 +140,7 @@ pub enum JobState {
     Skipped, // file already exists at destination
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobProgress {
     pub percent: Option<f64>,
     pub speed: Option<String>,
@@ -154,7 +154,7 @@ pub struct BatchEnqueueResult {
     pub job_ids: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DownloadJob {
     pub id: String,
     pub url: String,
@@ -194,12 +194,59 @@ impl QueueManager {
         }
     }
 
+    /// Load previously-persisted jobs from disk. Any running/pending entries
+    /// are marked Canceled on load (we can't resume yt-dlp child processes
+    /// across an app restart).
+    pub fn restore_from_disk(&self, app_data_dir: &Path) {
+        let path = app_data_dir.join("jobs.json");
+        if !path.exists() {
+            return;
+        }
+        let bytes = match std::fs::read(&path) {
+            Ok(b) => b,
+            Err(_) => return,
+        };
+        let mut jobs: Vec<DownloadJob> = match serde_json::from_slice(&bytes) {
+            Ok(v) => v,
+            Err(_) => return,
+        };
+        for j in jobs.iter_mut() {
+            if matches!(j.state, JobState::Pending | JobState::Running) {
+                j.state = JobState::Canceled;
+                if j.completed_at_ms.is_none() {
+                    j.completed_at_ms = Some(now_ms());
+                }
+                if j.error.is_none() {
+                    j.error = Some("App 重启时已取消".into());
+                }
+            }
+        }
+        let mut store = self.inner.jobs.lock().unwrap();
+        for j in jobs {
+            store.insert(j.id.clone(), j);
+        }
+    }
+
+    /// Snapshot the current jobs and persist to `$APP_DATA/jobs.json`.
+    pub fn persist_to_disk(&self, app_data_dir: &Path) -> AppResult<()> {
+        std::fs::create_dir_all(app_data_dir)?;
+        let path = app_data_dir.join("jobs.json");
+        let list = self.list();
+        let bytes = serde_json::to_vec_pretty(&list)?;
+        let tmp = path.with_extension("json.tmp");
+        std::fs::write(&tmp, bytes)?;
+        std::fs::rename(&tmp, &path)?;
+        Ok(())
+    }
+
     pub fn enqueue(&self, app: &AppHandle, req: EnqueueRequest) -> AppResult<String> {
         let id = Uuid::new_v4().to_string();
+        let settings_default = app.state::<SettingsStore>().get().download_dir;
         let output_dir = req
             .output_dir
             .clone()
-            .unwrap_or_else(|| default_output_dir().to_string_lossy().into_owned());
+            .filter(|s| !s.is_empty())
+            .unwrap_or(settings_default);
         std::fs::create_dir_all(&output_dir)?;
 
         let job = DownloadJob {
@@ -322,6 +369,8 @@ async fn run_one_job(
 
     set_state(&inner, &app, &job_id, JobState::Running, None, None);
 
+    let settings = app.state::<SettingsStore>().get();
+
     let site = sites::match_url(&req.url);
     let cookies_file = match site {
         Some(s) => prepare_cookies(&app, s.id).ok(),
@@ -331,7 +380,8 @@ async fn run_one_job(
     let output_dir = req
         .output_dir
         .clone()
-        .unwrap_or_else(|| default_output_dir().to_string_lossy().into_owned());
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| settings.download_dir.clone());
 
     let mut args: Vec<String> = vec![
         "--newline".into(),
@@ -355,6 +405,11 @@ async fn run_one_job(
     if let Some(c) = &cookies_file {
         args.push("--cookies".into());
         args.push(c.display().to_string());
+    }
+    // Proxy from user settings (http://… / socks5://…). Empty = no proxy.
+    if !settings.proxy.trim().is_empty() {
+        args.push("--proxy".into());
+        args.push(settings.proxy.trim().into());
     }
 
     // Apply format selection
@@ -384,11 +439,10 @@ async fn run_one_job(
     // when not on a terminal, so we cannot rely on it for live progress.
     // Instead we spawn a separate poller that watches the `.part` file
     // size — see `spawn_progress_poller` below.
-    let shell = app.shell();
-    let cmd = match shell.sidecar("yt-dlp") {
+    let cmd = match yt_dlp_command(&app) {
         Ok(c) => c.args(args.clone()),
         Err(e) => {
-            fail(&inner, &app, &job_id, &format!("sidecar lookup: {e}"));
+            fail(&inner, &app, &job_id, &format!("yt-dlp lookup: {e}"));
             return;
         }
     };
@@ -930,20 +984,33 @@ fn prepare_cookies(app: &AppHandle, site_id: &str) -> AppResult<PathBuf> {
     Ok(out)
 }
 
-pub fn default_output_dir() -> PathBuf {
-    if let Some(home) = dirs_home() {
-        home.join("Downloads").join("YtbDownGUI")
-    } else {
-        std::env::temp_dir().join("YtbDownGUI")
-    }
-}
 
 fn bundled_ffmpeg_path(app: &AppHandle) -> AppResult<PathBuf> {
     bundled_sidecar_path(app, "ffmpeg")
 }
 
+#[allow(dead_code)] // kept for future PTY/wrapper experiments
 fn bundled_ytdlp_path(app: &AppHandle) -> AppResult<PathBuf> {
     bundled_sidecar_path(app, "yt-dlp")
+}
+
+/// Build a yt-dlp Command. If the user has installed an updated yt-dlp via
+/// the in-app updater (lands in `$APP_DATA/bin/yt-dlp`), prefer that path
+/// over the bundled sidecar. Falls back to the sidecar otherwise.
+pub fn yt_dlp_command(
+    app: &AppHandle,
+) -> AppResult<tauri_plugin_shell::process::Command> {
+    if let Ok(dir) = app.path().app_data_dir() {
+        let user_bin = dir.join("bin").join("yt-dlp");
+        if user_bin.exists() {
+            return Ok(app
+                .shell()
+                .command(user_bin.to_string_lossy().to_string()));
+        }
+    }
+    app.shell()
+        .sidecar("yt-dlp")
+        .map_err(|e| AppError::Other(format!("sidecar yt-dlp: {e}")))
 }
 
 /// Resolve a sidecar binary's absolute path. We need this when we want to
@@ -988,10 +1055,6 @@ fn bundled_sidecar_path(app: &AppHandle, name: &str) -> AppResult<PathBuf> {
         }
     }
     Err(AppError::Other(format!("{name} binary not found")))
-}
-
-fn dirs_home() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(PathBuf::from)
 }
 
 fn now_ms() -> i64 {

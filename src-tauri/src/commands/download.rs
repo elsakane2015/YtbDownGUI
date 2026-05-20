@@ -1,7 +1,8 @@
 use crate::core::download::{
-    default_output_dir, BatchEnqueueResult, DownloadJob, EnqueueBatchRequest,
-    EnqueueRequest, QueueManager,
+    BatchEnqueueResult, DownloadJob, EnqueueBatchRequest, EnqueueRequest,
+    QueueManager,
 };
+use crate::core::settings::SettingsStore;
 use crate::error::AppResult;
 use tauri::{AppHandle, State};
 
@@ -47,6 +48,6 @@ pub fn clear_finished(queue: State<'_, QueueManager>) {
 }
 
 #[tauri::command]
-pub fn default_download_dir() -> String {
-    default_output_dir().to_string_lossy().into_owned()
+pub fn default_download_dir(settings: State<'_, SettingsStore>) -> String {
+    settings.get().download_dir
 }

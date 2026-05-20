@@ -196,6 +196,67 @@ export const clearFinished = () => invoke<void>("clear_finished");
 
 export const defaultDownloadDir = () => invoke<string>("default_download_dir");
 
+// ---- settings ----
+
+export type DefaultQuality = {
+  max_height: number | null;
+  prefer_codec: string;
+};
+
+export type Settings = {
+  download_dir: string;
+  max_concurrency: number;
+  default_quality: DefaultQuality;
+  proxy: string;
+  auto_check_ytdlp_updates: boolean;
+  ytdlp_update_use_proxy: boolean;
+};
+
+export type SettingsPatch = {
+  download_dir?: string;
+  max_concurrency?: number;
+  default_quality_max_height?: number | null;
+  default_quality_prefer_codec?: string;
+  proxy?: string;
+  auto_check_ytdlp_updates?: boolean;
+  ytdlp_update_use_proxy?: boolean;
+};
+
+export const getSettings = () => invoke<Settings>("get_settings");
+
+export const updateSettings = (patch: SettingsPatch) =>
+  invoke<Settings>("update_settings", { patch });
+
+export const onSettingsUpdated = (
+  cb: (settings: Settings) => void,
+): Promise<UnlistenFn> =>
+  listen<Settings>("settings:updated", (e) => cb(e.payload));
+
+// ---- yt-dlp update ----
+
+export type YtdlpUpdateInfo = {
+  current: string;
+  latest: string;
+  release_url: string;
+  asset_url: string;
+};
+
+export const checkYtdlpUpdate = () =>
+  invoke<YtdlpUpdateInfo | null>("check_ytdlp_update");
+
+export const installYtdlpUpdate = (info: YtdlpUpdateInfo) =>
+  invoke<string>("install_ytdlp_update", { info });
+
+export const onYtdlpUpdateAvailable = (
+  cb: (info: YtdlpUpdateInfo) => void,
+): Promise<UnlistenFn> =>
+  listen<YtdlpUpdateInfo>("ytdlp-update:available", (e) => cb(e.payload));
+
+export const onYtdlpUpdateInstalled = (
+  cb: (version: string) => void,
+): Promise<UnlistenFn> =>
+  listen<string>("ytdlp-update:installed", (e) => cb(e.payload));
+
 export const openPath = (path: string) => invoke<void>("open_path", { path });
 
 export const revealInFinder = (path: string) =>

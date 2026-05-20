@@ -1,8 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import DownloadsPage from "./pages/DownloadsPage";
 import AccountsPage from "./pages/AccountsPage";
 import SettingsPage from "./pages/SettingsPage";
+import {
+  installYtdlpUpdate,
+  onYtdlpUpdateAvailable,
+  onYtdlpUpdateInstalled,
+  type YtdlpUpdateInfo,
+} from "./lib/ipc";
 import "./App.css";
 
 type Tab = "downloads" | "accounts" | "settings";
@@ -15,6 +21,29 @@ const NAV: { id: Tab; label: string }[] = [
 
 function App() {
   const [tab, setTab] = useState<Tab>("downloads");
+  const [ytdlpUpdate, setYtdlpUpdate] = useState<YtdlpUpdateInfo | null>(null);
+  const [updatingYtdlp, setUpdatingYtdlp] = useState(false);
+
+  useEffect(() => {
+    const unAvail = onYtdlpUpdateAvailable((info) => setYtdlpUpdate(info));
+    const unInst = onYtdlpUpdateInstalled(() => setYtdlpUpdate(null));
+    return () => {
+      unAvail.then((fn) => fn());
+      unInst.then((fn) => fn());
+    };
+  }, []);
+
+  const handleUpdate = async () => {
+    if (!ytdlpUpdate) return;
+    setUpdatingYtdlp(true);
+    try {
+      await installYtdlpUpdate(ytdlpUpdate);
+    } catch (e) {
+      console.error("yt-dlp install:", e);
+    } finally {
+      setUpdatingYtdlp(false);
+    }
+  };
 
   // Explicit drag via Tauri's window.startDragging() — works reliably on
   // macOS overlay title bars even when the window is already focused,
@@ -65,10 +94,42 @@ function App() {
           ))}
         </nav>
       </div>
+      {ytdlpUpdate && (
+        <div className="update-banner">
+          <span>
+            yt-dlp 新版可用：<strong>{ytdlpUpdate.latest}</strong>{" "}
+            <span className="muted small">（当前 {ytdlpUpdate.current || "未知"}）</span>
+          </span>
+          <div>
+            <button
+              className="primary small"
+              onClick={handleUpdate}
+              disabled={updatingYtdlp}
+            >
+              {updatingYtdlp ? "更新中…" : "更新"}
+            </button>
+            <button
+              className="secondary small"
+              onClick={() => setYtdlpUpdate(null)}
+            >
+              忽略
+            </button>
+          </div>
+        </div>
+      )}
       <section className="content">
-        {tab === "downloads" && <DownloadsPage />}
-        {tab === "accounts" && <AccountsPage />}
-        {tab === "settings" && <SettingsPage />}
+        {/* All pages stay mounted so their local state (probed URL,
+            playlist selection, login progress) survives tab switches.
+            Only the active page is visible. */}
+        <div style={{ display: tab === "downloads" ? "block" : "none" }}>
+          <DownloadsPage />
+        </div>
+        <div style={{ display: tab === "accounts" ? "block" : "none" }}>
+          <AccountsPage />
+        </div>
+        <div style={{ display: tab === "settings" ? "block" : "none" }}>
+          <SettingsPage />
+        </div>
       </section>
     </main>
   );

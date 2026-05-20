@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { FolderIcon } from "../components/Icons";
 import {
   cancelJob,
   clearFinished,
   defaultDownloadDir,
   enqueueBatch,
   enqueueDownload,
+  getSettings,
   listJobs,
   onDownloadProgress,
   onDownloadState,
   onProbeStatus,
+  onSettingsUpdated,
   openPath,
   probe,
   revealInFinder,
@@ -16,6 +19,7 @@ import {
   type FormatSelection,
   type PlaylistEntry,
   type ProbeResult,
+  type Settings,
   type Stream,
   type SubMode,
   type SubtitleSelection,
@@ -61,9 +65,21 @@ export default function DownloadsPage() {
   // jobs
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
 
+  // user settings (download dir, default quality, etc.) — drive defaults.
+  const [settings, setSettings] = useState<Settings | null>(null);
+
   useEffect(() => {
     defaultDownloadDir().then(setOutputDir).catch(() => {});
     listJobs().then(setJobs).catch(() => {});
+    getSettings().then(setSettings).catch(() => {});
+    const unSettings = onSettingsUpdated((s) => {
+      setSettings(s);
+      // Live-update download dir to the new default if user hasn't overridden
+      // it (heuristic: if it still matches our last-known default).
+      setOutputDir((prev) =>
+        prev === "" || prev === s.download_dir ? s.download_dir : prev,
+      );
+    });
     const unState = onDownloadState((job) => {
       setJobs((prev) => {
         const idx = prev.findIndex((j) => j.id === job.id);
@@ -83,6 +99,7 @@ export default function DownloadsPage() {
       unState.then((fn) => fn());
       unProg.then((fn) => fn());
       unProbe.then((fn) => fn());
+      unSettings.then((fn) => fn());
     };
   }, []);
 
@@ -159,8 +176,14 @@ export default function DownloadsPage() {
           convert_to: audioConvert === "" ? null : audioConvert,
         };
       case "auto":
-      default:
-        return { kind: "auto", max_height: 1080, prefer_codec: "avc1" };
+      default: {
+        const dq = settings?.default_quality;
+        return {
+          kind: "auto",
+          max_height: dq?.max_height ?? 1080,
+          prefer_codec: dq?.prefer_codec || "avc1",
+        };
+      }
     }
   };
 
@@ -304,6 +327,7 @@ export default function DownloadsPage() {
           outputDir={outputDir}
           setOutputDir={setOutputDir}
           onMessage={setProbeMsg}
+          settings={settings}
         />
       )}
 
@@ -319,11 +343,13 @@ function PlaylistPanel({
   outputDir,
   setOutputDir,
   onMessage,
+  settings,
 }: {
   playlist: PlaylistProbe;
   outputDir: string;
   setOutputDir: (s: string) => void;
   onMessage: (s: string) => void;
+  settings: Settings | null;
 }) {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [keyword, setKeyword] = useState("");
@@ -342,10 +368,15 @@ function PlaylistPanel({
   // Batch-wide quality settings (applied uniformly to every checked video).
   // Two modes — same structure as single-video picker, but no per-video
   // format_id selectors (would mean nothing across a heterogeneous list).
+  // Initial defaults come from user settings if available.
   type BatchMode = "video_audio" | "audio_only";
   const [batchMode, setBatchMode] = useState<BatchMode>("video_audio");
-  const [batchMaxHeight, setBatchMaxHeight] = useState<number | null>(1080);
-  const [batchVideoCodec, setBatchVideoCodec] = useState<string>("avc1");
+  const [batchMaxHeight, setBatchMaxHeight] = useState<number | null>(
+    settings?.default_quality.max_height ?? 1080,
+  );
+  const [batchVideoCodec, setBatchVideoCodec] = useState<string>(
+    settings?.default_quality.prefer_codec || "avc1",
+  );
   const [batchAudioCodec, setBatchAudioCodec] = useState<string>("");
   const [batchContainer, setBatchContainer] = useState<"mp4" | "mkv">("mp4");
   const [batchAudioOnlyCodec, setBatchAudioOnlyCodec] = useState<string>("");
@@ -1386,25 +1417,6 @@ function fmtDuration(s: number): string {
   const sec = s % 60;
   if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
   return `${m}:${String(sec).padStart(2, "0")}`;
-}
-
-function FolderIcon() {
-  // Minimal SF-Symbols-flavoured folder glyph.
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.4"
-      strokeLinejoin="round"
-      strokeLinecap="round"
-      aria-hidden
-    >
-      <path d="M2 4.5C2 3.67 2.67 3 3.5 3h2.4l1.2 1.6h5.4c.83 0 1.5.67 1.5 1.5v6.4c0 .83-.67 1.5-1.5 1.5h-9C2.67 14 2 13.33 2 12.5v-8Z" />
-    </svg>
-  );
 }
 
 function stateLabel(s: DownloadJob["state"]): string {

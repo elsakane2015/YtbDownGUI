@@ -6,12 +6,12 @@
 //! of a playlist / channel — so a 1000-video channel returns in a few
 //! seconds with metadata only.
 
-use crate::core::{cookies, sites};
+use crate::core::{cookies, settings::SettingsStore, sites};
 use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tauri::{AppHandle, Emitter};
-use tauri_plugin_shell::{process::CommandEvent, ShellExt};
+use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_shell::process::CommandEvent;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -334,15 +334,17 @@ async fn run_yt_dlp_dump_json(
         args.push("--cookies".into());
         args.push(c.display().to_string());
     }
+    // Apply user-configured proxy if any
+    let settings = app.state::<SettingsStore>().get();
+    if !settings.proxy.trim().is_empty() {
+        args.push("--proxy".into());
+        args.push(settings.proxy.trim().into());
+    }
     args.push(url.into());
 
     let _ = app.emit("probe:status", "正在启动 yt-dlp…");
 
-    let cmd = app
-        .shell()
-        .sidecar("yt-dlp")
-        .map_err(|e| AppError::Other(format!("sidecar yt-dlp: {e}")))?
-        .args(&args);
+    let cmd = crate::core::download::yt_dlp_command(app)?.args(&args);
     let (mut rx, _child) = cmd
         .spawn()
         .map_err(|e| AppError::Other(format!("spawn yt-dlp: {e}")))?;
