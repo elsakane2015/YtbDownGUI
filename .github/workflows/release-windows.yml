@@ -66,8 +66,11 @@ jobs:
         with:
           workspaces: "src-tauri -> target"
 
-      - name: Build (no installer bundles — we ship a portable zip)
-        run: pnpm tauri build --target x86_64-pc-windows-msvc --bundles app
+      - name: Build (no installer — we ship a portable zip ourselves)
+        # `--no-bundle` skips MSI/NSIS generation; on Windows that gives us
+        # just the .exe + DLLs in target/<triple>/release/. We assemble the
+        # portable zip in the next step. (`--bundles app` is macOS-only.)
+        run: pnpm tauri build --target x86_64-pc-windows-msvc --no-bundle
 
       - name: Stage portable bundle
         id: stage
@@ -77,26 +80,31 @@ jobs:
           $build = "${{ steps.ver.outputs.build }}"
           $stage = "stage/YtbDownGUI"
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
+
           $appDir = "src-tauri/target/x86_64-pc-windows-msvc/release"
-          # Main exe
+          $binDir = "src-tauri/binaries"
+
+          # Main exe — Cargo emits it as <package-name>.exe in the release dir.
           Copy-Item "$appDir/ytbdowngui.exe" "$stage/YtbDownGUI.exe"
-          # Sidecar binaries (bundled by Tauri end up named after the
-          # target triple inside the release dir; copy bare names into
-          # the zip so the runtime locator finds them).
-          Get-ChildItem $appDir -Filter "yt-dlp*.exe" | ForEach-Object {
-              Copy-Item $_.FullName "$stage/yt-dlp.exe"
-          }
-          Get-ChildItem $appDir -Filter "ffmpeg*.exe" | ForEach-Object {
-              Copy-Item $_.FullName "$stage/ffmpeg.exe"
-          }
-          # WebView2Loader.dll lives next to the .exe; bring it along.
+
+          # Sidecars: --no-bundle skips Tauri's automatic copy, so we grab
+          # them straight out of src-tauri/binaries/ and rename to bare
+          # filenames (yt-dlp.exe / ffmpeg.exe) which is what the runtime
+          # locator looks for next to the main .exe.
+          Copy-Item "$binDir/yt-dlp-x86_64-pc-windows-msvc.exe" "$stage/yt-dlp.exe"
+          Copy-Item "$binDir/ffmpeg-x86_64-pc-windows-msvc.exe" "$stage/ffmpeg.exe"
+
+          # WebView2Loader.dll: wry links it dynamically, so it lands in
+          # the release dir during cargo build.
           if (Test-Path "$appDir/WebView2Loader.dll") {
               Copy-Item "$appDir/WebView2Loader.dll" "$stage/"
           }
-          # Resources (Credits.rtf etc) — purely cosmetic on Windows but
-          # keeps file layout consistent across platforms.
-          if (Test-Path "$appDir/resources") {
-              Copy-Item -Recurse "$appDir/resources" "$stage/"
+
+          # Credits.rtf — purely cosmetic on Windows but keeps file layout
+          # parity with the macOS bundle.
+          if (Test-Path "src-tauri/Credits.rtf") {
+              New-Item -ItemType Directory -Force -Path "$stage/resources" | Out-Null
+              Copy-Item "src-tauri/Credits.rtf" "$stage/resources/"
           }
           # Portable mode flag — presence triggers <exe-dir>/data/
           "便携模式开关：删除此文件可改用 %APPDATA% 系统目录存储数据。`r`nPortable-mode flag: delete this file to fall back to the standard %APPDATA% location.`r`n" |
