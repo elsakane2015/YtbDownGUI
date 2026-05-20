@@ -255,7 +255,12 @@ export default function DownloadsPage() {
         <section className="probe-result">
           <div className="video-card">
             {video.thumbnail && (
-              <img className="thumb" src={video.thumbnail} alt="" />
+              <img
+                className="thumb"
+                src={video.thumbnail}
+                alt=""
+                referrerPolicy="no-referrer"
+              />
             )}
             <div className="meta">
               <h3>{video.title}</h3>
@@ -331,7 +336,13 @@ export default function DownloadsPage() {
         />
       )}
 
-      <JobsList jobs={jobs} />
+      <JobsList
+        jobs={jobs}
+        onClearFinished={async () => {
+          const next = await clearFinished();
+          setJobs(next);
+        }}
+      />
     </div>
   );
 }
@@ -607,7 +618,12 @@ function PlaylistPanel({
                 />
               </label>
               {e.thumbnail && (
-                <img className="entry-thumb" src={e.thumbnail} alt="" />
+                <img
+                  className="entry-thumb"
+                  src={e.thumbnail}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                />
               )}
               <div className="entry-meta">
                 <div className="entry-title">{e.title}</div>
@@ -1092,7 +1108,13 @@ function SubtitlePicker(props: {
 
 // ---- JobsList ----
 
-function JobsList({ jobs }: { jobs: DownloadJob[] }) {
+function JobsList({
+  jobs,
+  onClearFinished,
+}: {
+  jobs: DownloadJob[];
+  onClearFinished: () => void;
+}) {
   if (jobs.length === 0) {
     return null;
   }
@@ -1109,7 +1131,7 @@ function JobsList({ jobs }: { jobs: DownloadJob[] }) {
       <div className="jobs-head">
         <h4>任务（{jobs.length}）</h4>
         {finishedExists && (
-          <button className="secondary small" onClick={() => clearFinished()}>
+          <button className="secondary small" onClick={onClearFinished}>
             清理已完成
           </button>
         )}

@@ -20,6 +20,11 @@ pub struct Site {
     /// and `m.youtube.com` both match the `youtube.com` entry, but `nox.com`
     /// does NOT match `x.com`.
     pub url_hosts: &'static [&'static str],
+    /// Whether `--flat-playlist` returns useful metadata for playlist /
+    /// channel entries on this site. True for YouTube (fast probe with full
+    /// titles), false for Bilibili (multi-part `?p=N` series — flat mode
+    /// returns only entry URLs, so we must do a full probe).
+    pub use_flat_playlist: bool,
 }
 
 pub const SITES: &[Site] = &[
@@ -30,6 +35,7 @@ pub const SITES: &[Site] = &[
         cookies_for_url: "https://www.youtube.com",
         logged_in_marker_cookie: "SAPISID",
         url_hosts: &["youtube.com", "youtu.be"],
+        use_flat_playlist: true,
     },
     Site {
         id: "bilibili",
@@ -38,6 +44,9 @@ pub const SITES: &[Site] = &[
         cookies_for_url: "https://www.bilibili.com",
         logged_in_marker_cookie: "SESSDATA",
         url_hosts: &["bilibili.com", "b23.tv"],
+        // Bilibili's --flat-playlist returns only URLs for multi-part videos
+        // (no title/duration/thumbnail). We trade probe speed for usable data.
+        use_flat_playlist: false,
     },
     Site {
         id: "twitter",
@@ -46,6 +55,7 @@ pub const SITES: &[Site] = &[
         cookies_for_url: "https://x.com",
         logged_in_marker_cookie: "auth_token",
         url_hosts: &["x.com", "twitter.com"],
+        use_flat_playlist: true,
     },
     Site {
         id: "tencent_video",
@@ -54,6 +64,7 @@ pub const SITES: &[Site] = &[
         cookies_for_url: "https://v.qq.com",
         logged_in_marker_cookie: "vqq_vuserid",
         url_hosts: &["v.qq.com"],
+        use_flat_playlist: true,
     },
     Site {
         id: "douyin",
@@ -62,6 +73,7 @@ pub const SITES: &[Site] = &[
         cookies_for_url: "https://www.douyin.com",
         logged_in_marker_cookie: "sessionid_ss",
         url_hosts: &["douyin.com"],
+        use_flat_playlist: true,
     },
     Site {
         id: "tiktok",
@@ -70,6 +82,7 @@ pub const SITES: &[Site] = &[
         cookies_for_url: "https://www.tiktok.com",
         logged_in_marker_cookie: "sessionid",
         url_hosts: &["tiktok.com"],
+        use_flat_playlist: true,
     },
     Site {
         id: "pinterest",
@@ -78,6 +91,7 @@ pub const SITES: &[Site] = &[
         cookies_for_url: "https://www.pinterest.com",
         logged_in_marker_cookie: "_pinterest_sess",
         url_hosts: &["pinterest.com", "pin.it"],
+        use_flat_playlist: true,
     },
 ];
 

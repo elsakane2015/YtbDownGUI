@@ -162,8 +162,9 @@ pub async fn probe(app: &AppHandle, url: &str) -> AppResult<ProbeResult> {
         Some(s) => prepare_cookies(app, s.id).ok(),
         None => None,
     };
+    let use_flat = site.map(|s| s.use_flat_playlist).unwrap_or(true);
 
-    let json = run_yt_dlp_dump_json(app, url, cookies_file.as_deref()).await?;
+    let json = run_yt_dlp_dump_json(app, url, cookies_file.as_deref(), use_flat).await?;
     let parsed: YtJson = serde_json::from_str(&json)
         .map_err(|e| AppError::Other(format!("yt-dlp JSON parse: {e}")))?;
 
@@ -320,16 +321,16 @@ async fn run_yt_dlp_dump_json(
     app: &AppHandle,
     url: &str,
     cookies_file: Option<&std::path::Path>,
+    use_flat_playlist: bool,
 ) -> AppResult<String> {
-    let mut args: Vec<String> = vec![
-        "-J".into(),
-        "--flat-playlist".into(),
-        "--no-warnings".into(),
-        // Send extractor status lines to stderr so we can stream them as
-        // "probe:status" events to the UI (otherwise long channel probes look
-        // frozen for 10-30s).
-        "--progress".into(),
-    ];
+    let mut args: Vec<String> = vec!["-J".into(), "--no-warnings".into()];
+    if use_flat_playlist {
+        args.push("--flat-playlist".into());
+    }
+    // Send extractor status lines to stderr so we can stream them as
+    // "probe:status" events to the UI (otherwise long channel probes look
+    // frozen for 10-30s).
+    args.push("--progress".into());
     if let Some(c) = cookies_file {
         args.push("--cookies".into());
         args.push(c.display().to_string());

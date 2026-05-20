@@ -43,8 +43,8 @@ pub fn cancel_batch(
 }
 
 #[tauri::command]
-pub fn clear_finished(queue: State<'_, QueueManager>) {
-    queue.clear_finished();
+pub fn clear_finished(queue: State<'_, QueueManager>) -> Vec<DownloadJob> {
+    queue.clear_finished()
 }
 
 #[tauri::command]

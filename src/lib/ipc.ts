@@ -192,7 +192,8 @@ export const cancelJob = (id: string) => invoke<void>("cancel_job", { id });
 export const cancelBatch = (batchId: string) =>
   invoke<number>("cancel_batch", { batchId });
 
-export const clearFinished = () => invoke<void>("clear_finished");
+export const clearFinished = () =>
+  invoke<DownloadJob[]>("clear_finished");
 
 export const defaultDownloadDir = () => invoke<string>("default_download_dir");
 

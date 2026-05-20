@@ -343,14 +343,20 @@ impl QueueManager {
         Ok(n)
     }
 
-    pub fn clear_finished(&self) {
-        let mut jobs = self.inner.jobs.lock().unwrap();
-        jobs.retain(|_, j| {
-            !matches!(
-                j.state,
-                JobState::Done | JobState::Failed | JobState::Canceled | JobState::Skipped
-            )
-        });
+    pub fn clear_finished(&self) -> Vec<DownloadJob> {
+        {
+            let mut jobs = self.inner.jobs.lock().unwrap();
+            jobs.retain(|_, j| {
+                !matches!(
+                    j.state,
+                    JobState::Done
+                        | JobState::Failed
+                        | JobState::Canceled
+                        | JobState::Skipped
+                )
+            });
+        }
+        self.list()
     }
 }
 
@@ -804,6 +810,12 @@ fn spawn_progress_poller(
 
         // Smooth the speed reading over the last few samples.
         let mut speed_samples: VecDeque<f64> = VecDeque::with_capacity(5);
+        // Track whether we have ever seen .part files. Used to detect the
+        // moment they disappear (ffmpeg merged & cleaned up) so we can
+        // switch the UI from "下载中" to "合并/后处理中" instead of leaving
+        // it stuck at 95% for the 5–10s of yt-dlp postprocessing.
+        let mut saw_part_files = false;
+        let mut emitted_postprocess = false;
 
         loop {
             tokio::time::sleep(Duration::from_millis(500)).await;
@@ -813,8 +825,31 @@ fn spawn_progress_poller(
 
             let total_bytes = sum_part_files(&dir, video_id_hint.as_deref());
             if total_bytes == 0 {
-                continue; // .part file not yet created
+                // Before any .part file exists, just wait.
+                if !saw_part_files {
+                    continue;
+                }
+                // .part files have disappeared after previously existing —
+                // ffmpeg merge / metadata embed / move are running. Emit a
+                // single "post-processing" tick so the UI moves off
+                // "下载中 95%" and the user knows we're not stuck.
+                if !emitted_postprocess {
+                    set_progress(
+                        &inner,
+                        &app,
+                        &job_id,
+                        JobProgress {
+                            percent: Some(99.0),
+                            speed: None,
+                            eta: None,
+                            stage: Some("合并 / 后处理中".into()),
+                        },
+                    );
+                    emitted_postprocess = true;
+                }
+                continue;
             }
+            saw_part_files = true;
 
             let now = Instant::now();
             let elapsed = now.duration_since(last_time).as_secs_f64();
