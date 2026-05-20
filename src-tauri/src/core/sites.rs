@@ -15,8 +15,11 @@ pub struct Site {
     pub cookies_for_url: &'static str,
     /// A cookie that, once present, indicates a successful login.
     pub logged_in_marker_cookie: &'static str,
-    /// Substring that identifies a download URL as belonging to this site.
-    pub url_substring: &'static str,
+    /// Bare hostnames that identify download URLs as belonging to this site.
+    /// We match by exact host or `*.host` (subdomains), so `www.youtube.com`
+    /// and `m.youtube.com` both match the `youtube.com` entry, but `nox.com`
+    /// does NOT match `x.com`.
+    pub url_hosts: &'static [&'static str],
 }
 
 pub const SITES: &[Site] = &[
@@ -26,7 +29,7 @@ pub const SITES: &[Site] = &[
         login_url: "https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fwww.youtube.com%2F",
         cookies_for_url: "https://www.youtube.com",
         logged_in_marker_cookie: "SAPISID",
-        url_substring: "youtube.com",
+        url_hosts: &["youtube.com", "youtu.be"],
     },
     Site {
         id: "bilibili",
@@ -34,7 +37,47 @@ pub const SITES: &[Site] = &[
         login_url: "https://passport.bilibili.com/login",
         cookies_for_url: "https://www.bilibili.com",
         logged_in_marker_cookie: "SESSDATA",
-        url_substring: "bilibili.com",
+        url_hosts: &["bilibili.com", "b23.tv"],
+    },
+    Site {
+        id: "twitter",
+        display_name: "X (Twitter)",
+        login_url: "https://x.com/i/flow/login",
+        cookies_for_url: "https://x.com",
+        logged_in_marker_cookie: "auth_token",
+        url_hosts: &["x.com", "twitter.com"],
+    },
+    Site {
+        id: "tencent_video",
+        display_name: "腾讯视频",
+        login_url: "https://v.qq.com/",
+        cookies_for_url: "https://v.qq.com",
+        logged_in_marker_cookie: "vqq_vuserid",
+        url_hosts: &["v.qq.com"],
+    },
+    Site {
+        id: "douyin",
+        display_name: "抖音",
+        login_url: "https://www.douyin.com/",
+        cookies_for_url: "https://www.douyin.com",
+        logged_in_marker_cookie: "sessionid_ss",
+        url_hosts: &["douyin.com"],
+    },
+    Site {
+        id: "tiktok",
+        display_name: "TikTok",
+        login_url: "https://www.tiktok.com/login",
+        cookies_for_url: "https://www.tiktok.com",
+        logged_in_marker_cookie: "sessionid",
+        url_hosts: &["tiktok.com"],
+    },
+    Site {
+        id: "pinterest",
+        display_name: "Pinterest",
+        login_url: "https://www.pinterest.com/login/",
+        cookies_for_url: "https://www.pinterest.com",
+        logged_in_marker_cookie: "_pinterest_sess",
+        url_hosts: &["pinterest.com", "pin.it"],
     },
 ];
 
@@ -42,8 +85,16 @@ pub fn find(id: &str) -> Option<&'static Site> {
     SITES.iter().find(|s| s.id == id)
 }
 
-pub fn match_url(url: &str) -> Option<&'static Site> {
-    SITES.iter().find(|s| url.contains(s.url_substring))
+/// Resolve a download URL to its owning site by parsing the URL's host and
+/// matching exact-or-subdomain against each site's `url_hosts`.
+pub fn match_url(url_str: &str) -> Option<&'static Site> {
+    let parsed = url::Url::parse(url_str).ok()?;
+    let host = parsed.host_str()?.to_ascii_lowercase();
+    SITES.iter().find(|s| {
+        s.url_hosts
+            .iter()
+            .any(|h| host == *h || host.ends_with(&format!(".{h}")))
+    })
 }
 
 #[cfg(test)]
@@ -57,9 +108,71 @@ mod tests {
     }
 
     #[test]
-    fn matches_url() {
-        assert_eq!(match_url("https://www.youtube.com/watch?v=abc").unwrap().id, "youtube");
-        assert_eq!(match_url("https://www.bilibili.com/video/BV1xx").unwrap().id, "bilibili");
+    fn matches_youtube_variants() {
+        assert_eq!(
+            match_url("https://www.youtube.com/watch?v=abc").unwrap().id,
+            "youtube"
+        );
+        assert_eq!(
+            match_url("https://m.youtube.com/watch?v=abc").unwrap().id,
+            "youtube"
+        );
+        assert_eq!(match_url("https://youtu.be/abc").unwrap().id, "youtube");
+    }
+
+    #[test]
+    fn matches_x_and_twitter() {
+        assert_eq!(
+            match_url("https://x.com/user/status/12345").unwrap().id,
+            "twitter"
+        );
+        assert_eq!(
+            match_url("https://twitter.com/user/status/12345").unwrap().id,
+            "twitter"
+        );
+        assert_eq!(
+            match_url("https://mobile.twitter.com/foo").unwrap().id,
+            "twitter"
+        );
+    }
+
+    #[test]
+    fn no_false_positives() {
+        // x.com is a substring of nox.com but should NOT match Twitter.
+        assert!(match_url("https://nox.com/x").is_none());
+        // Random URL: no match.
         assert!(match_url("https://example.com/x").is_none());
+    }
+
+    #[test]
+    fn matches_bilibili() {
+        assert_eq!(
+            match_url("https://www.bilibili.com/video/BV1xx").unwrap().id,
+            "bilibili"
+        );
+        assert_eq!(match_url("https://b23.tv/abc").unwrap().id, "bilibili");
+    }
+
+    #[test]
+    fn matches_new_sites() {
+        assert_eq!(
+            match_url("https://v.qq.com/x/cover/abc/xyz.html").unwrap().id,
+            "tencent_video"
+        );
+        assert_eq!(
+            match_url("https://www.douyin.com/video/12345").unwrap().id,
+            "douyin"
+        );
+        assert_eq!(
+            match_url("https://www.tiktok.com/@user/video/123").unwrap().id,
+            "tiktok"
+        );
+        assert_eq!(
+            match_url("https://www.pinterest.com/pin/12345/").unwrap().id,
+            "pinterest"
+        );
+        assert_eq!(match_url("https://pin.it/abc").unwrap().id, "pinterest");
+        // v.qq.com should NOT capture other qq.com services
+        assert!(match_url("https://mail.qq.com/").is_none());
     }
 }

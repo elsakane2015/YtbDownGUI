@@ -1,3 +1,4 @@
+use crate::core::probe::{self as core_probe, ProbeResult};
 use crate::error::AppError;
 use serde::Serialize;
 use tauri::AppHandle;
@@ -7,6 +8,11 @@ use tauri_plugin_shell::{process::CommandEvent, ShellExt};
 pub struct ToolVersion {
     pub name: String,
     pub version: String,
+}
+
+#[tauri::command]
+pub async fn probe(app: AppHandle, url: String) -> Result<ProbeResult, AppError> {
+    core_probe::probe(&app, &url).await
 }
 
 #[tauri::command]

@@ -51,18 +51,33 @@ body,
   flex-direction: column;
   flex-shrink: 0;
   border-bottom: 1px solid var(--border);
+  user-select: none;
+  cursor: default; /* prevent I-beam when dragging window */
 }
+.titlebar * {
+  cursor: inherit; /* children (tabs row, empty spaces) keep the arrow */
+}
+.titlebar button,
+.titlebar a,
+.titlebar input,
+.titlebar select {
+  cursor: pointer; /* interactive children get pointer */
+}
+
+/* `.titlebar` and `.tabs` carry data-tauri-drag-region in JSX. That goes
+   through Tauri's native NSWindow drag handler (works reliably even when
+   the window is already focused — unlike -webkit-app-region: drag).
+   Interactive children (button, input) intercept the click first, so we
+   do NOT need an explicit no-drag opt-out on .tab. */
 
 .titlebar-drag {
   height: 28px;
-  -webkit-app-region: drag;
 }
 
 .tabs {
   display: flex;
   gap: 4px;
   padding: 6px 12px 8px 88px; /* leave room for traffic lights on the left */
-  -webkit-app-region: no-drag;
 }
 
 .tab {
@@ -252,3 +267,466 @@ button.danger {
   cursor: pointer;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
 }
+
+/* ---------------- M3: downloads page ---------------- */
+
+button.primary {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+button.primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+button.small {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.urlbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.url-input {
+  flex: 1;
+  font: inherit;
+  color: inherit;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-strong);
+  outline: none;
+}
+.url-input:focus {
+  border-color: var(--accent);
+}
+
+.hint {
+  margin: 10px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(10, 132, 255, 0.10);
+  color: var(--accent);
+  font-size: 13px;
+}
+
+/* Indeterminate progress shown while probing a (possibly long) playlist URL.
+   The status text is fed by stream of yt-dlp stderr "downloading webpage /
+   API JSON / N items" lines so the user can see we're alive. */
+.probe-progress {
+  margin: 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.probe-indicator {
+  position: relative;
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+@media (prefers-color-scheme: dark) {
+  .probe-indicator { background: rgba(255, 255, 255, 0.08); }
+}
+.probe-indicator::after {
+  content: "";
+  position: absolute;
+  left: -30%;
+  top: 0;
+  width: 30%;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  animation: probe-sweep 1.4s linear infinite;
+}
+@keyframes probe-sweep {
+  0% { left: -30%; }
+  100% { left: 100%; }
+}
+
+.probe-result {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.video-card {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 12px;
+  border-radius: 10px;
+}
+.thumb {
+  width: 160px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.video-card .meta h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.picker {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.picker h4 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.seg {
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 7px;
+  padding: 2px;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  .seg {
+    background: rgba(255, 255, 255, 0.06);
+  }
+}
+.seg.sub-mode {
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+.seg-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 5px 12px;
+  font-size: 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--muted);
+}
+.seg-btn.active {
+  background: var(--surface-strong);
+  color: inherit;
+  border-color: var(--border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.split-row,
+.sub-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 180px;
+}
+
+.picker select {
+  font: inherit;
+  color: inherit;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-strong);
+}
+
+.chip-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.chip {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.chip.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.small {
+  font-size: 12px;
+}
+
+.output-dir {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.icon-btn {
+  padding: 5px 8px;
+  background: var(--surface-strong);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--muted);
+}
+.icon-btn:hover:not(:disabled) {
+  color: inherit;
+  background: rgba(0, 0, 0, 0.05);
+}
+@media (prefers-color-scheme: dark) {
+  .icon-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.10); }
+}
+
+.job-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ---- M4: playlist / channel ---- */
+
+.playlist-panel {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.playlist-head h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.filter-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.bulk-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.bulk-row .spacer {
+  margin-left: auto;
+}
+
+.entry-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 360px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-strong);
+}
+
+.entry-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.entry-row:last-child { border-bottom: none; }
+.entry-row:hover { background: rgba(0, 0, 0, 0.03); }
+@media (prefers-color-scheme: dark) {
+  .entry-row:hover { background: rgba(255, 255, 255, 0.04); }
+}
+
+.entry-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.entry-thumb {
+  width: 80px;
+  height: 45px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.entry-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.entry-title {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+
+.entry-empty {
+  padding: 14px;
+  text-align: center;
+}
+.output-dir label {
+  font-size: 13px;
+  color: var(--muted);
+}
+.dir-input {
+  flex: 1;
+  font: inherit;
+  color: inherit;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-strong);
+  outline: none;
+}
+
+.action-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* jobs list */
+
+.jobs {
+  margin-top: 28px;
+}
+.jobs-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.jobs-head h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.jobs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Each row IS the progress bar: solid fill expands left→right based on percent.
+   Text is drawn twice — dark base layer + clipped white overlay — so the
+   readable text always contrasts with whatever's behind it. */
+.job {
+  position: relative;
+  height: 44px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.job-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 0;
+  width: 0;
+  background: var(--accent);
+  transition: width 0.3s ease, background 0.2s ease;
+}
+
+.job-content {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 12px 0 14px;
+  color: #1d1d1f;
+}
+@media (prefers-color-scheme: dark) {
+  .job-content { color: #f5f5f7; }
+}
+
+/* The white-text overlay sits on top of the fill, clip-pathed to only
+   render inside the filled width — so text inside the colored region
+   appears white, text in the unfilled region keeps the dark base color. */
+.job-content-white {
+  z-index: 2;
+  color: #ffffff;
+  pointer-events: none;
+}
+
+.job .job-title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.job .job-status {
+  font-size: 12px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  flex-shrink: 0;
+  opacity: 0.92;
+}
+
+.job .job-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  z-index: 3; /* above white overlay so the dark-text buttons stay clickable */
+}
+.job .job-actions button {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(0, 0, 0, 0.10);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #1d1d1f;
+}
+.job .job-actions button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 1);
+}
+@media (prefers-color-scheme: dark) {
+  .job .job-actions button {
+    background: rgba(40, 40, 42, 0.92);
+    color: #f5f5f7;
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+  .job .job-actions button:hover:not(:disabled) {
+    background: rgba(60, 60, 62, 1);
+  }
+}
+
+/* state-driven fill color */
+.job.state-pending .job-fill { background: #8e8e93; }
+.job.state-running .job-fill { background: var(--accent); }
+.job.state-done .job-fill { background: #34c759; }
+.job.state-failed .job-fill { background: var(--danger); }
+.job.state-canceled .job-fill { background: #8e8e93; }
+.job.state-skipped .job-fill { background: #ffb340; }
