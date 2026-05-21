@@ -1164,6 +1164,30 @@ function JobsList({
   );
 }
 
+/// Cross-platform "reveal this job's file" handler.
+/// On macOS we use `open -R <file>` which highlights it in Finder.
+/// On Windows `explorer.exe /select,<file>` is unreliable, so we just
+/// open the parent directory. Errors propagate to a `console.error` —
+/// silently swallowing them used to make the button look broken.
+async function handleReveal(j: DownloadJob) {
+  const isMac =
+    typeof document !== "undefined" &&
+    document.body.dataset.platform === "macos";
+  try {
+    if (isMac && j.output_path) {
+      await revealInFinder(j.output_path);
+    } else {
+      // output_dir was created by us when the job was enqueued, so it
+      // always exists — strictly more reliable than output_path which
+      // may be empty if yt-dlp's stdout was buffered.
+      await openPath(j.output_dir);
+    }
+  } catch (e) {
+    console.error("reveal failed:", e);
+    alert(`打开失败：${e}`);
+  }
+}
+
 function JobRow({ job: j }: { job: DownloadJob }) {
   const pct = fillPercent(j);
   const status = jobStatusText(j);
@@ -1179,10 +1203,10 @@ function JobRow({ job: j }: { job: DownloadJob }) {
           取消
         </button>
       )}
-      {j.state === "done" && j.output_path && (
+      {j.state === "done" && (
         <button
           className="secondary small"
-          onClick={() => revealInFinder(j.output_path!)}
+          onClick={() => handleReveal(j)}
         >
           <FolderIcon /> {revealLabel()}
         </button>
@@ -1190,11 +1214,7 @@ function JobRow({ job: j }: { job: DownloadJob }) {
       {(j.state === "skipped" || (j.state === "failed" && j.output_dir)) && (
         <button
           className="secondary small"
-          onClick={() =>
-            j.output_path
-              ? revealInFinder(j.output_path)
-              : openPath(j.output_dir)
-          }
+          onClick={() => handleReveal(j)}
         >
           <FolderIcon /> 打开文件夹
         </button>

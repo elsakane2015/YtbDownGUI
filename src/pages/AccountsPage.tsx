@@ -28,7 +28,11 @@ export default function AccountsPage() {
     typeof document !== "undefined"
       ? document.body.dataset.platform ?? ""
       : "";
-  const defaultBrowser = platform === "windows" ? "edge" : "safari";
+  // Firefox is currently the only browser whose cookies yt-dlp can
+  // reliably read on modern Windows: Chrome / Edge use App-Bound
+  // Encryption since 2024 which yt-dlp's DPAPI path can't decrypt
+  // (yt-dlp #10927). Firefox stores cookies in a plain SQLite DB.
+  const defaultBrowser = platform === "windows" ? "firefox" : "safari";
 
   const refresh = useCallback(async () => {
     try {
@@ -105,7 +109,11 @@ export default function AccountsPage() {
       await browserLoginStart(siteId);
       setActiveLogin({ kind: "browser", siteId, browser: defaultBrowser });
       setToast(
-        `已在系统浏览器中打开 ${siteId}。登录完成后，**完全关闭 ${defaultBrowser}（含后台进程）**，再回来点 "从 ${defaultBrowser} 导入 cookies"。浏览器未关闭时 cookie 数据库被锁住，导入会失败。`,
+        `已在系统默认浏览器中打开 ${siteId}。` +
+          (defaultBrowser === "firefox"
+            ? `登录完成后，**完全关闭 Firefox**（含后台进程），再点 "从 firefox 导入 cookies"。` +
+              `注意：Chrome / Edge 由于 App-Bound 加密无法导入，你需要在 **Firefox** 里登录。如果默认浏览器不是 Firefox，请手动在 Firefox 里打开此站点登录。`
+            : `登录完成后，**完全关闭 ${defaultBrowser}**（含后台进程），再点 "从 ${defaultBrowser} 导入 cookies"。`),
       );
     } catch (e) {
       setToast(String(e));
