@@ -956,7 +956,7 @@ fn list_dir_for_log(dir: &Path, id_hint: Option<&str>) -> String {
             _ => true,
         };
         if matches_id {
-            let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+            let size = live_file_size(&entry.path());
             matching.push(format!("{name} ({size}B)"));
         }
     }
@@ -972,22 +972,43 @@ fn sum_part_files(dir: &Path, id_hint: Option<&str>) -> u64 {
     for entry in entries.flatten() {
         let name_os = entry.file_name();
         let name = name_os.to_string_lossy();
-        let is_part = name.contains(".part") || name.ends_with(".ytdl");
-        if !is_part {
+        // Skip resume-metadata files — they're tiny and unrelated to
+        // download progress.
+        if name.ends_with(".ytdl") || name.ends_with(".ytdl.part") {
             continue;
         }
+        // Skip cross-job pollution: if we know the video id, only count
+        // files whose name contains it.
         if let Some(id) = id_hint {
             if !id.is_empty() && !name.contains(id) {
                 continue;
             }
         }
-        if let Ok(meta) = entry.metadata() {
-            if meta.is_file() {
-                total += meta.len();
-            }
-        }
+        // We previously only counted ".part" files, but on multi-stream
+        // downloads (video then audio) yt-dlp renames each segment to its
+        // final name before the next segment starts, so the bar would
+        // drop to 0% the moment the video segment completed. Counting
+        // any matching file (.part OR final) keeps the cumulative bytes
+        // monotonic across segments.
+        total += live_file_size(&entry.path());
     }
     total
+}
+
+/// Read the *current* size of a file that may be actively being written.
+/// On Windows, `metadata().len()` returns a cached value from the dir
+/// entry that doesn't refresh while yt-dlp is mid-download (we saw 0B
+/// reported for 35+ seconds while the file actually grew to 32 MB).
+/// Opening the file and seeking to End forces the FS to report the real
+/// EOF offset; if the open fails we fall back to metadata.
+fn live_file_size(path: &Path) -> u64 {
+    use std::io::{Seek, SeekFrom};
+    if let Ok(mut f) = std::fs::File::open(path) {
+        if let Ok(pos) = f.seek(SeekFrom::End(0)) {
+            return pos;
+        }
+    }
+    std::fs::metadata(path).map(|m| m.len()).unwrap_or(0)
 }
 
 fn parse_progress_json(s: &str) -> Option<JobProgress> {
