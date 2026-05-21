@@ -15,6 +15,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let data_dir = paths::data_dir(&app.handle()).map_err(|e| e.to_string())?;
+            crate::core::log::init(&data_dir);
             let settings = SettingsStore::load(&data_dir).map_err(|e| e.to_string())?;
             let concurrency = settings.get().max_concurrency;
             app.manage(settings);

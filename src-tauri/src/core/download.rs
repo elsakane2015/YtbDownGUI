@@ -816,17 +816,59 @@ fn spawn_progress_poller(
         // it stuck at 95% for the 5–10s of yt-dlp postprocessing.
         let mut saw_part_files = false;
         let mut emitted_postprocess = false;
+        let mut emitted_pre_part = false;
+        let mut tick: u32 = 0;
+
+        crate::core::log::write(format!(
+            "[poll:{}] start dir={:?} id_hint={:?} expected_total={:?}",
+            &job_id[..8],
+            dir,
+            video_id_hint,
+            expected_total
+        ));
 
         loop {
             tokio::time::sleep(Duration::from_millis(500)).await;
             if stop.load(Ordering::Relaxed) {
+                crate::core::log::write(format!(
+                    "[poll:{}] stop signal received, exiting",
+                    &job_id[..8]
+                ));
                 break;
             }
+            tick += 1;
 
             let total_bytes = sum_part_files(&dir, video_id_hint.as_deref());
+
+            // Diagnostic: first few ticks always, then every 10 (~5s).
+            if tick <= 3 || tick % 10 == 0 {
+                let listing = list_dir_for_log(&dir, video_id_hint.as_deref());
+                crate::core::log::write(format!(
+                    "[poll:{}] tick {tick}: part_bytes={total_bytes} listing={}",
+                    &job_id[..8],
+                    listing
+                ));
+            }
+
             if total_bytes == 0 {
-                // Before any .part file exists, just wait.
+                // Before any .part file exists, just wait. But emit one
+                // "downloading at 0%" tick so the UI shows the row is
+                // alive instead of looking frozen at pending.
                 if !saw_part_files {
+                    if !emitted_pre_part {
+                        set_progress(
+                            &inner,
+                            &app,
+                            &job_id,
+                            JobProgress {
+                                percent: Some(0.0),
+                                speed: None,
+                                eta: None,
+                                stage: Some("准备下载".into()),
+                            },
+                        );
+                        emitted_pre_part = true;
+                    }
                     continue;
                 }
                 // .part files have disappeared after previously existing —
@@ -895,6 +937,30 @@ fn spawn_progress_poller(
             );
         }
     })
+}
+
+/// Compact dir listing for the log: filenames matching the id hint plus a
+/// total count. Used when diagnosing "why doesn't progress update".
+fn list_dir_for_log(dir: &Path, id_hint: Option<&str>) -> String {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(e) => return format!("(read_dir err: {e})"),
+    };
+    let mut matching: Vec<String> = Vec::new();
+    let mut total = 0usize;
+    for entry in entries.flatten() {
+        total += 1;
+        let name = entry.file_name().to_string_lossy().to_string();
+        let matches_id = match id_hint {
+            Some(id) if !id.is_empty() => name.contains(id),
+            _ => true,
+        };
+        if matches_id {
+            let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+            matching.push(format!("{name} ({size}B)"));
+        }
+    }
+    format!("[{} entries, {} matching: {:?}]", total, matching.len(), matching)
 }
 
 fn sum_part_files(dir: &Path, id_hint: Option<&str>) -> u64 {

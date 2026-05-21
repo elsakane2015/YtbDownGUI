@@ -41,14 +41,19 @@ fn default_true() -> bool {
 
 impl Default for Settings {
     fn default() -> Self {
-        let download_dir = if let Some(home) = std::env::var_os("HOME") {
-            PathBuf::from(home)
+        // HOME is set on macOS / Linux. On Windows it's USERPROFILE; HOME is
+        // sometimes set under WSL/Git-Bash too so we fall through both.
+        let home = std::env::var_os("HOME")
+            .or_else(|| std::env::var_os("USERPROFILE"))
+            .map(PathBuf::from);
+        let download_dir = match home {
+            Some(h) => h
                 .join("Downloads")
                 .join("YtbDownGUI")
                 .to_string_lossy()
-                .into_owned()
-        } else {
-            "/tmp/YtbDownGUI".to_string()
+                .into_owned(),
+            None if cfg!(target_os = "windows") => "C:\\YtbDownGUI".into(),
+            None => "/tmp/YtbDownGUI".into(),
         };
         Self {
             download_dir,

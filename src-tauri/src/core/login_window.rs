@@ -37,16 +37,37 @@ pub fn open(app: &AppHandle, site: &Site) -> AppResult<WebviewWindow> {
     let display = site.display_name.to_string();
     let initial_title = format!("登录 {} · {}", site.display_name, site.login_url);
 
-    let win = WebviewWindowBuilder::new(app, LOGIN_WINDOW_LABEL, WebviewUrl::External(url))
-        .title(initial_title)
-        .inner_size(1000.0, 720.0)
-        .min_inner_size(720.0, 520.0)
-        .resizable(true)
-        .on_page_load(move |win, payload| {
-            let url = payload.url().to_string();
-            let _ = win.set_title(&format!("登录 {display} · {url}"));
-        })
-        .build()?;
+    // On Windows, WebView2's default user-agent contains "Edg/" which
+    // Google's login page treats as an "embedded browser" and refuses to
+    // render properly (white screen). Override with a plain Chrome UA on
+    // Windows; macOS WKWebView's default Safari UA already works.
+    #[cfg(target_os = "windows")]
+    let user_agent = Some(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+         (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+            .to_string(),
+    );
+    #[cfg(not(target_os = "windows"))]
+    let user_agent: Option<String> = None;
+
+    let mut builder =
+        WebviewWindowBuilder::new(app, LOGIN_WINDOW_LABEL, WebviewUrl::External(url))
+            .title(initial_title)
+            .inner_size(1000.0, 720.0)
+            .min_inner_size(720.0, 520.0)
+            .resizable(true)
+            // Explicit so Windows always gets a system title bar with the
+            // close/min/max buttons. On macOS this is the default anyway.
+            .decorations(true)
+            .closable(true)
+            .on_page_load(move |win, payload| {
+                let url = payload.url().to_string();
+                let _ = win.set_title(&format!("登录 {display} · {url}"));
+            });
+    if let Some(ua) = user_agent {
+        builder = builder.user_agent(&ua);
+    }
+    let win = builder.build()?;
 
     spawn_watcher(app.clone(), site.id.to_string());
     Ok(win)
