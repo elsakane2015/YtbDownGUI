@@ -103,18 +103,22 @@ pub fn reveal_in_finder(path: String) -> AppResult<()> {
     }
     #[cfg(target_os = "windows")]
     {
-        // Canonical form: `explorer.exe /select,"C:\path with space\file"`.
-        // Critically, the comma must be glued to /select and the path
-        // wrapped in double quotes — Rust's auto-quoting puts the quotes
-        // around the *whole* "/select,C:\..." string instead, which
-        // Explorer parses as a literal path with /select prefix and
-        // silently fails. raw_arg lets us format the command-line
-        // tokens ourselves.
+        // We tried `explorer.exe /select,"<path>"` with both auto-quoted
+        // arg() and manual raw_arg() formatting — neither reliably
+        // highlights the file (Explorer often opens an empty new window
+        // or no-ops silently depending on path / username / Windows
+        // build). The pragmatic fix: just open the parent directory,
+        // same as the "failed-job → 打开文件夹" path which the user
+        // confirmed works. We lose the file-highlight nicety but the
+        // user can locate the file by name in a Folder window they can
+        // actually see.
         use std::os::windows::process::CommandExt;
+        let parent = p.parent().unwrap_or(p);
+        let parent_str = parent.to_string_lossy();
         Command::new("explorer.exe")
-            .raw_arg(format!("/select,\"{}\"", path))
+            .raw_arg(format!("\"{}\"", parent_str))
             .spawn()
-            .map_err(|e| AppError::Other(format!("explorer /select: {e}")))?;
+            .map_err(|e| AppError::Other(format!("explorer parent: {e}")))?;
     }
     #[cfg(target_os = "linux")]
     {

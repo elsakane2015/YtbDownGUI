@@ -105,7 +105,7 @@ export default function AccountsPage() {
       await browserLoginStart(siteId);
       setActiveLogin({ kind: "browser", siteId, browser: defaultBrowser });
       setToast(
-        `已在系统浏览器中打开 ${siteId}。在浏览器里完成登录后，回到这里点 "从浏览器导入 cookies"。`,
+        `已在系统浏览器中打开 ${siteId}。登录完成后，**完全关闭 ${defaultBrowser}（含后台进程）**，再回来点 "从 ${defaultBrowser} 导入 cookies"。浏览器未关闭时 cookie 数据库被锁住，导入会失败。`,
       );
     } catch (e) {
       setToast(String(e));

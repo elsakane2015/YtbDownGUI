@@ -73,12 +73,30 @@ pub async fn browser_login_import(
     }
 
     if !tmp_cookies.exists() {
+        // Detect the most common Windows failure mode — the browser is
+        // still running and yt-dlp can't copy its locked SQLite cookie
+        // store. Surface a clear, actionable message instead of yt-dlp's
+        // GitHub-issue dump.
+        if stderr_tail.contains("Could not copy")
+            && stderr_tail.contains("cookie database")
+        {
+            return Err(AppError::Other(format!(
+                "{browser} 正在运行，cookie 数据库被锁住，yt-dlp 无法读取。\
+                 请完全退出 {browser}（包括所有后台进程，如有必要在任务管理器里结束 \
+                 msedge.exe / chrome.exe）然后重试。"
+            )));
+        }
         return Err(AppError::Other(format!(
-            "yt-dlp didn't write {} — is {browser} installed and signed in to {}? \
-             stderr tail: {}",
+            "yt-dlp 没有写入 {}。检查 {browser} 是否已安装，并且已在 {} 登录。\
+             stderr 尾部: {}",
             tmp_cookies.display(),
             site.cookies_for_url,
-            stderr_tail.lines().rev().take(3).collect::<Vec<_>>().join(" | ")
+            stderr_tail
+                .lines()
+                .rev()
+                .take(3)
+                .collect::<Vec<_>>()
+                .join(" | ")
         )));
     }
 
