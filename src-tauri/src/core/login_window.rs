@@ -56,10 +56,15 @@ pub fn open(app: &AppHandle, site: &Site) -> AppResult<WebviewWindow> {
             .inner_size(1000.0, 720.0)
             .min_inner_size(720.0, 520.0)
             .resizable(true)
-            // Explicit so Windows always gets a system title bar with the
-            // close/min/max buttons. On macOS this is the default anyway.
+            // Belt and braces — make every renderer-affecting flag
+            // explicit so Tauri 2 doesn't fall back to surprising
+            // defaults on Windows.
             .decorations(true)
             .closable(true)
+            .visible(true)
+            .focused(true)
+            .center()
+            .transparent(false)
             .on_page_load(move |win, payload| {
                 let url = payload.url().to_string();
                 let _ = win.set_title(&format!("登录 {display} · {url}"));
