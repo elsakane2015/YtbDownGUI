@@ -58,7 +58,10 @@ export default function AccountsPage() {
     try {
       await startLogin(siteId);
       setActiveLogin(siteId);
-      setToast(`登录窗口已打开 (${siteId})。登录成功后会自动保存 cookies，无需手动操作。`);
+      setToast(
+        `登录窗口已打开 (${siteId})。登录成功后会自动保存 cookies。` +
+          `如果窗口卡住，点这里下面的"取消"按钮强制关闭。`,
+      );
     } catch (e) {
       setToast(String(e));
     } finally {

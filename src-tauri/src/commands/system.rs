@@ -65,8 +65,11 @@ pub fn open_path(path: String) -> AppResult<()> {
     }
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
+        // `raw_arg` bypasses Rust's automatic quoting which mangles paths
+        // with spaces when fed to Explorer. We explicitly quote ourselves.
         Command::new("explorer.exe")
-            .arg(&path)
+            .raw_arg(format!("\"{}\"", path))
             .spawn()
             .map_err(|e| AppError::Other(format!("explorer: {e}")))?;
     }
@@ -100,12 +103,16 @@ pub fn reveal_in_finder(path: String) -> AppResult<()> {
     }
     #[cfg(target_os = "windows")]
     {
-        // `/select,<path>` (no space after the comma) tells Explorer to
-        // open the parent dir and highlight the file. spawn() — not
-        // status() — because explorer can keep running and we don't
-        // want to block IPC waiting on it.
+        // Canonical form: `explorer.exe /select,"C:\path with space\file"`.
+        // Critically, the comma must be glued to /select and the path
+        // wrapped in double quotes — Rust's auto-quoting puts the quotes
+        // around the *whole* "/select,C:\..." string instead, which
+        // Explorer parses as a literal path with /select prefix and
+        // silently fails. raw_arg lets us format the command-line
+        // tokens ourselves.
+        use std::os::windows::process::CommandExt;
         Command::new("explorer.exe")
-            .arg(format!("/select,{}", path))
+            .raw_arg(format!("/select,\"{}\"", path))
             .spawn()
             .map_err(|e| AppError::Other(format!("explorer /select: {e}")))?;
     }

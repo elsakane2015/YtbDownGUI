@@ -40,7 +40,11 @@ pub const SITES: &[Site] = &[
     Site {
         id: "bilibili",
         display_name: "Bilibili",
-        login_url: "https://passport.bilibili.com/login",
+        // The standalone passport.bilibili.com/login page hangs WebView2
+        // on Windows (white screen, no event response). The homepage's
+        // modal login flow is more compatible — same SESSDATA cookie
+        // ends up on .bilibili.com when the user signs in there.
+        login_url: "https://www.bilibili.com/",
         cookies_for_url: "https://www.bilibili.com",
         logged_in_marker_cookie: "SESSDATA",
         url_hosts: &["bilibili.com", "b23.tv"],
