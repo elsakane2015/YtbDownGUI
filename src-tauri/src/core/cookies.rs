@@ -115,6 +115,55 @@ pub fn write_netscape(cookies: &[StoredCookie], out_path: &Path) -> AppResult<()
     Ok(())
 }
 
+/// Parse a Netscape `cookies.txt` (as written by yt-dlp / curl / etc.)
+/// back into our `StoredCookie` list. The inverse of [`write_netscape`].
+///
+/// Used by the browser-login flow: we invoke
+/// `yt-dlp --cookies-from-browser edge --cookies <tmp>` to dump cookies
+/// from the user's Edge profile, then re-import them into our own store.
+pub fn parse_netscape(content: &str) -> AppResult<Vec<StoredCookie>> {
+    let mut out = Vec::new();
+    for raw in content.lines() {
+        let line = raw.trim_end();
+        if line.is_empty() {
+            continue;
+        }
+        // `#HttpOnly_…` lines are real cookies, not comments — special prefix
+        // yt-dlp uses to encode the HttpOnly flag. Regular `#` lines are
+        // comments and skipped.
+        let (http_only, body) = if let Some(rest) = line.strip_prefix("#HttpOnly_") {
+            (true, rest)
+        } else if line.starts_with('#') {
+            continue;
+        } else {
+            (false, line)
+        };
+
+        let fields: Vec<&str> = body.split('\t').collect();
+        if fields.len() != 7 {
+            continue; // malformed row, skip silently
+        }
+        let domain = fields[0].to_string();
+        // fields[1] is the include-subdomains flag; we re-derive that from
+        // the leading dot when re-emitting, so we don't need to store it.
+        let path = fields[2].to_string();
+        let secure = fields[3].eq_ignore_ascii_case("TRUE");
+        let expires: Option<i64> = fields[4].parse().ok().filter(|v: &i64| *v > 0);
+        let name = fields[5].to_string();
+        let value = fields[6].to_string();
+        out.push(StoredCookie {
+            name,
+            value,
+            domain,
+            path,
+            secure,
+            http_only,
+            expires,
+        });
+    }
+    Ok(out)
+}
+
 #[cfg(unix)]
 fn set_owner_only(path: &Path) -> AppResult<()> {
     use std::os::unix::fs::PermissionsExt;
@@ -207,5 +256,23 @@ mod tests {
         save(dir.path(), "youtube", &sample_cookies()).unwrap();
         delete(dir.path(), "youtube").unwrap();
         assert!(load(dir.path(), "youtube").is_err());
+    }
+
+    #[test]
+    fn netscape_roundtrip() {
+        let dir = tempdir().unwrap();
+        let out = dir.path().join("cookies.txt");
+        write_netscape(&sample_cookies(), &out).unwrap();
+        let txt = std::fs::read_to_string(&out).unwrap();
+        let parsed = parse_netscape(&txt).unwrap();
+        assert_eq!(parsed.len(), 2);
+        let sapisid = parsed.iter().find(|c| c.name == "SAPISID").unwrap();
+        assert!(sapisid.http_only);
+        assert!(sapisid.secure);
+        assert_eq!(sapisid.expires, Some(1893456000));
+        assert_eq!(sapisid.value, "abcd1234");
+        let session = parsed.iter().find(|c| c.name == "VISITOR_INFO1_LIVE").unwrap();
+        assert_eq!(session.expires, None);
+        assert!(!session.http_only);
     }
 }
