@@ -111,9 +111,9 @@ export default function AccountsPage() {
       setToast(
         `已在系统默认浏览器中打开 ${siteId}。` +
           (defaultBrowser === "firefox"
-            ? `登录完成后，**完全关闭 Firefox**（含后台进程），再点 "从 firefox 导入 cookies"。` +
-              `注意：Chrome / Edge 由于 App-Bound 加密无法导入，你需要在 **Firefox** 里登录。如果默认浏览器不是 Firefox，请手动在 Firefox 里打开此站点登录。`
-            : `登录完成后，**完全关闭 ${defaultBrowser}**（含后台进程），再点 "从 ${defaultBrowser} 导入 cookies"。`),
+            ? `登录完成后，完全关闭 Firefox（含后台进程），再点 "从 firefox 导入 cookies"。` +
+              `注意：Chrome / Edge 由于 App-Bound 加密通常无法导入；如果刚打开的不是 Firefox，请手动在 Firefox 里打开此站点登录。`
+            : `登录完成后，完全关闭 ${defaultBrowser}（含后台进程），再点 "从 ${defaultBrowser} 导入 cookies"。`),
       );
     } catch (e) {
       setToast(String(e));
@@ -177,8 +177,8 @@ export default function AccountsPage() {
           {platform === "windows" && (
             <>
               {" "}
-              Windows 上如果内嵌窗口白屏，可用"用浏览器登录"备选路径（系统 Edge
-              登录 → 自动导入 cookies）。
+              Windows 上如果内嵌窗口仍白屏，可用"用浏览器登录"备选路径（建议在
+              Firefox 登录，再导入 cookies）。
             </>
           )}
         </p>

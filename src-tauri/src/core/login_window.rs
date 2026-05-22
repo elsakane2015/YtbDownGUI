@@ -29,26 +29,21 @@ pub fn open(app: &AppHandle, site: &Site) -> AppResult<WebviewWindow> {
         return Err(AppError::LoginInProgress(site.id.into()));
     }
 
-    let target_url_str = site.login_url.to_string();
+    let target_url: tauri::Url = site
+        .login_url
+        .parse()
+        .map_err(|e| AppError::Other(format!("bad login URL: {e}")))?;
+    let target_url_str = target_url.to_string();
+    let target_url_for_load = target_url.clone();
     let display = site.display_name.to_string();
     let initial_title = format!("登录 {} · {}", site.display_name, site.login_url);
 
     // ─── Windows WebView2 white-screen workaround ─────────────────────────
-    // Tauri 2's `WebviewUrl::External(...)` at build() time races with
-    // WebView2 initialisation on Windows and frequently leaves the window
-    // blank with no event response (tauri-apps/tauri #13963, #10011,
-    // #14588). The canonical fix recommended by the Tauri team
-    // (discussion #3020) is to start the window on a trivial *local*
-    // URL — letting WebView2 fully initialise — and then JS-navigate to
-    // the real target via `window.location.replace(...)`.
-    //
-    // We use a tiny `data:` URL as the stub so we don't have to bundle
-    // an extra HTML file. macOS WKWebView doesn't have this race, so it
-    // would work either way; we apply the same code path on both for
-    // simplicity.
-    let stub_url: tauri::Url = "data:text/html;charset=utf-8,<html><body style=\"font-family:system-ui;padding:20px;color:#666\">Loading…</body></html>"
-        .parse()
-        .expect("data: URL parses");
+    // Tauri 2 / WebView2 can white-screen or hang when a webview window is
+    // created directly on an external login URL from Windows. Build the
+    // window on a bundled local page first, then navigate after the webview
+    // exists. This also avoids relying on `data:` URL parsing/rendering in
+    // WebView2, which was another source of blank windows in packaged builds.
 
     #[cfg(target_os = "windows")]
     let user_agent = Some(
@@ -64,7 +59,7 @@ pub fn open(app: &AppHandle, site: &Site) -> AppResult<WebviewWindow> {
     let mut builder = WebviewWindowBuilder::new(
         app,
         LOGIN_WINDOW_LABEL,
-        WebviewUrl::External(stub_url),
+        WebviewUrl::App("login-stub.html".into()),
     )
     .title(initial_title)
     .inner_size(1000.0, 720.0)
@@ -78,9 +73,11 @@ pub fn open(app: &AppHandle, site: &Site) -> AppResult<WebviewWindow> {
     .transparent(false)
     .on_page_load(move |win, payload| {
         let url = payload.url().to_string();
-        // Skip the title update for the data: stub — it would briefly
-        // show "登录 X · data:text/html;..." otherwise.
-        if !url.starts_with("data:") {
+        if url.contains("login-stub.html") {
+            if let Err(e) = win.navigate(target_url_for_load.clone()) {
+                crate::core::log::write(format!("[login] navigate from stub failed: {e}"));
+            }
+        } else {
             let _ = win.set_title(&format!("登录 {display} · {url}"));
         }
     });
@@ -89,16 +86,8 @@ pub fn open(app: &AppHandle, site: &Site) -> AppResult<WebviewWindow> {
     }
     let win = builder.build()?;
 
-    // Now JS-navigate to the real login URL. By this point the WebView2
-    // is fully initialised on the data: stub. Escape single quotes /
-    // backslashes so an exotic URL can't break the literal.
-    let escaped = target_url_str.replace('\\', "\\\\").replace('\'', "\\'");
-    let nav_js = format!("window.location.replace('{escaped}');");
-    win.eval(&nav_js)
-        .map_err(|e| AppError::Other(format!("eval navigate: {e}")))?;
-
     crate::core::log::write(format!(
-        "[login:{}] window built on data: stub, JS-navigated to {}",
+        "[login:{}] window built on local stub, waiting to navigate to {}",
         site.id, target_url_str
     ));
 

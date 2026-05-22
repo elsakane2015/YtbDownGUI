@@ -32,7 +32,7 @@ pub fn list_accounts(app: AppHandle) -> AppResult<Vec<AccountStatus>> {
 }
 
 #[tauri::command]
-pub fn start_login(app: AppHandle, site_id: String) -> AppResult<()> {
+pub async fn start_login(app: AppHandle, site_id: String) -> AppResult<()> {
     let site = sites::find(&site_id).ok_or_else(|| AppError::UnknownSite(site_id.clone()))?;
     let _win = login_window::open(&app, site)?;
     Ok(())
