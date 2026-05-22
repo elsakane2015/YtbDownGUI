@@ -118,7 +118,7 @@ gh release create "${TAG}" \
 echo "GitHub Release created: ${TAG}"
 
 # Sync the tag that gh just created on the remote back to local
-git fetch --tags
+git fetch --tags --force
 echo "Local tags synced"
 
 # --- summary --------------------------------------------------------------
