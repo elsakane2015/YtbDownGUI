@@ -33,12 +33,7 @@ pub fn open(app: &AppHandle, site: &Site) -> AppResult<WebviewWindow> {
         return Err(AppError::LoginInProgress(site.id.into()));
     }
 
-    let target_url: tauri::Url = site
-        .login_url
-        .parse()
-        .map_err(|e| AppError::Other(format!("bad login URL: {e}")))?;
-    let target_url_str = target_url.to_string();
-    let target_url_for_load = target_url.clone();
+    let target_url_str = site.login_url.to_string();
     let display = site.display_name.to_string();
     let initial_title = format!("登录 {} · {}", site.display_name, site.login_url);
 
@@ -60,11 +55,12 @@ pub fn open(app: &AppHandle, site: &Site) -> AppResult<WebviewWindow> {
     #[cfg(not(target_os = "windows"))]
     let user_agent: Option<String> = None;
 
-    // Guard against the double-fire: on_page_load fires for both
-    // PageLoadEvent::Started AND PageLoadEvent::Finished on the same URL.
-    // Calling navigate() twice cancels the first real-URL navigation.
+    // on_page_load fires twice per page (Started + Finished). Use an atomic
+    // flag so we only navigate once, and only after the stub has fully loaded.
     let navigated = Arc::new(AtomicBool::new(false));
     let navigated_for_cb = navigated.clone();
+    // Capture the URL as a plain String for the JS eval below.
+    let target_url_str_for_cb = target_url_str.clone();
 
     let mut builder = WebviewWindowBuilder::new(
         app,
@@ -84,15 +80,20 @@ pub fn open(app: &AppHandle, site: &Site) -> AppResult<WebviewWindow> {
     .on_page_load(move |win, payload| {
         let url = payload.url().to_string();
         if url.contains("login-stub.html") {
-            // Only navigate once, after the stub has fully loaded (Finished).
-            // Navigating during Started can race with WebView2 init; and
-            // navigating again on the second Finished event would cancel the
-            // in-flight real-URL navigation.
+            // Wait for Finished (stub fully rendered) before navigating.
+            // Use JS eval rather than win.navigate(): calling WebView2's
+            // Navigate() synchronously inside a NavigationCompleted handler
+            // triggers a COM re-entrancy guard and the call is silently
+            // dropped, leaving the webview stuck on the stub.
             if payload.event() == PageLoadEvent::Finished
                 && !navigated_for_cb.swap(true, Ordering::SeqCst)
             {
-                if let Err(e) = win.navigate(target_url_for_load.clone()) {
-                    crate::core::log::write(format!("[login] navigate from stub failed: {e}"));
+                let escaped = target_url_str_for_cb
+                    .replace('\\', "\\\\")
+                    .replace('\'', "\\'");
+                let js = format!("window.location.replace('{escaped}');");
+                if let Err(e) = win.eval(&js) {
+                    crate::core::log::write(format!("[login] eval navigate failed: {e}"));
                 }
             }
         } else {
