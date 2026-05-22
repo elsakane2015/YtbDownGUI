@@ -327,6 +327,13 @@ async fn run_yt_dlp_dump_json(
     if use_flat_playlist {
         args.push("--flat-playlist".into());
     }
+    // Force YouTube to use the iOS + mweb player clients, which return a
+    // complete format list even without login. The default web client
+    // sometimes returns an empty format list for certain videos when invoked
+    // as a subprocess (no cached session), causing "Requested format is not
+    // available" despite the video being publicly accessible.
+    args.push("--extractor-args".into());
+    args.push("youtube:player_client=ios,mweb".into());
     // Send extractor status lines to stderr so we can stream them as
     // "probe:status" events to the UI (otherwise long channel probes look
     // frozen for 10-30s).
