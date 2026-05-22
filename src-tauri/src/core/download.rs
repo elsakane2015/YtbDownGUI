@@ -390,6 +390,7 @@ async fn run_one_job(
         .unwrap_or_else(|| settings.download_dir.clone());
 
     let mut args: Vec<String> = vec![
+        "--no-config".into(),
         "--newline".into(),
         "--no-warnings".into(),
         "--no-overwrites".into(), // skip if file already exists

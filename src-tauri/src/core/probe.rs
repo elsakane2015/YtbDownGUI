@@ -323,7 +323,7 @@ async fn run_yt_dlp_dump_json(
     cookies_file: Option<&std::path::Path>,
     use_flat_playlist: bool,
 ) -> AppResult<String> {
-    let mut args: Vec<String> = vec!["-J".into(), "--no-warnings".into()];
+    let mut args: Vec<String> = vec!["--no-config".into(), "-J".into(), "--no-warnings".into()];
     if use_flat_playlist {
         args.push("--flat-playlist".into());
     }
