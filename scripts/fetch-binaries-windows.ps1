@@ -40,8 +40,10 @@ $FfmpegDst = Join-Path $Out "ffmpeg-x86_64-pc-windows-msvc.exe"
 if (-not (Test-Path $FfmpegDst)) {
     Write-Host "[2/2] Downloading ffmpeg $FfmpegVersion (Windows x64)…"
     # Latest essentials build from BtbN/FFmpeg-Builds, the standard source
-    # for portable Windows ffmpeg static binaries.
-    $FfmpegZipUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+    # for portable Windows ffmpeg static binaries. Using the LGPL build:
+    # this app only remuxes pre-encoded streams, so GPL-only encoders
+    # (libx264, libx265, libfdk-aac) are not needed.
+    $FfmpegZipUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl.zip"
     $TmpZip = Join-Path $Out ".ffmpeg-win64.zip"
     $TmpDir = Join-Path $Out ".ffmpeg-win64-extract"
     if (Test-Path $TmpDir) { Remove-Item -Recurse -Force $TmpDir }
