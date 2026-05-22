@@ -8,6 +8,13 @@
 #   then rebuilds the DMG (with an Applications shortcut for drag-install).
 # - Each run lands in its own folder under `releases/v<ver>-b<build>/` so
 #   older builds aren't overwritten.
+# - Automatically commits .buildnumber, creates a GitHub Release (tag +
+#   release page + macOS DMG upload) via `gh`, then pushes — so the
+#   Windows GitHub Actions workflow always finds an existing release to
+#   attach its zip to.
+#
+# Requirements:
+#   gh (GitHub CLI) must be installed and authenticated.
 #
 # Usage:
 #   bash scripts/release.sh
@@ -81,6 +88,39 @@ ditto "${APP}" "${RELEASE_DIR}/YtbDownGUI.app" 2>/dev/null || true
 # in place — it's the throwaway version the bundler always produces. Our
 # canonical artifact is the one under releases/.
 
+# --- commit .buildnumber + push -------------------------------------------
+TAG="v${VERSION}-b${BUILD_STR}"
+git add "${BUILD_FILE}"
+git commit -m "chore: bump build number to ${BUILD_STR}"
+git push
+echo "Pushed commit"
+
+# --- create GitHub Release (tag + page + macOS DMG) -----------------------
+# gh release create creates the tag on GitHub at the current HEAD, uploads
+# the DMG, and publishes the release page — all in one step. The Windows
+# GitHub Actions workflow (triggered by the new tag) will then find the
+# release already exists and can attach its zip without failing.
+RELEASE_NOTES="## macOS
+下载 \`.dmg\`，拖入 Applications，首次打开运行：
+\`\`\`bash
+xattr -dr com.apple.quarantine /Applications/YtbDownGUI.app
+\`\`\`
+
+## Windows
+Windows 版正在构建中，稍后自动附到此 Release。
+下载 \`YtbDownGUI-*-windows-x64.zip\`，解压后直接双击 \`YtbDownGUI.exe\`。
+首次启动 SmartScreen 弹窗点「更多信息」→「仍要运行」。"
+
+gh release create "${TAG}" \
+  "${DMG_FINAL}" \
+  --title "v${VERSION} (Build ${BUILD_STR})" \
+  --notes "${RELEASE_NOTES}"
+echo "GitHub Release created: ${TAG}"
+
+# Sync the tag that gh just created on the remote back to local
+git fetch --tags
+echo "Local tags synced"
+
 # --- summary --------------------------------------------------------------
 echo
 echo "==========================================="
@@ -90,5 +130,6 @@ echo "  .app : ${RELEASE_DIR}/YtbDownGUI.app"
 echo "  .dmg : ${DMG_FINAL}"
 echo "  size : $(du -h "${DMG_FINAL}" | awk '{print $1}')"
 echo "  sha  : $(shasum -a 256 "${DMG_FINAL}" | awk '{print $1}')"
+echo "  tag  : ${TAG} (pushed to GitHub, Windows build triggered)"
 echo
 echo "Next build: $(printf "%03d" $((NEXT + 1)))"
