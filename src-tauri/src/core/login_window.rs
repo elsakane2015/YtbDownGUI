@@ -16,8 +16,12 @@ use crate::core::{
     sites::{self, Site},
 };
 use crate::error::{AppError, AppResult};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{webview::PageLoadEvent, AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 pub const LOGIN_WINDOW_LABEL: &str = "login";
 
@@ -56,6 +60,12 @@ pub fn open(app: &AppHandle, site: &Site) -> AppResult<WebviewWindow> {
     #[cfg(not(target_os = "windows"))]
     let user_agent: Option<String> = None;
 
+    // Guard against the double-fire: on_page_load fires for both
+    // PageLoadEvent::Started AND PageLoadEvent::Finished on the same URL.
+    // Calling navigate() twice cancels the first real-URL navigation.
+    let navigated = Arc::new(AtomicBool::new(false));
+    let navigated_for_cb = navigated.clone();
+
     let mut builder = WebviewWindowBuilder::new(
         app,
         LOGIN_WINDOW_LABEL,
@@ -74,8 +84,16 @@ pub fn open(app: &AppHandle, site: &Site) -> AppResult<WebviewWindow> {
     .on_page_load(move |win, payload| {
         let url = payload.url().to_string();
         if url.contains("login-stub.html") {
-            if let Err(e) = win.navigate(target_url_for_load.clone()) {
-                crate::core::log::write(format!("[login] navigate from stub failed: {e}"));
+            // Only navigate once, after the stub has fully loaded (Finished).
+            // Navigating during Started can race with WebView2 init; and
+            // navigating again on the second Finished event would cancel the
+            // in-flight real-URL navigation.
+            if payload.event() == PageLoadEvent::Finished
+                && !navigated_for_cb.swap(true, Ordering::SeqCst)
+            {
+                if let Err(e) = win.navigate(target_url_for_load.clone()) {
+                    crate::core::log::write(format!("[login] navigate from stub failed: {e}"));
+                }
             }
         } else {
             let _ = win.set_title(&format!("登录 {display} · {url}"));
