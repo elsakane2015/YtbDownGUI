@@ -121,6 +121,7 @@ pub fn write_netscape(cookies: &[StoredCookie], out_path: &Path) -> AppResult<()
 /// Used by the browser-login flow: we invoke
 /// `yt-dlp --cookies-from-browser edge --cookies <tmp>` to dump cookies
 /// from the user's Edge profile, then re-import them into our own store.
+#[allow(dead_code)]
 pub fn parse_netscape(content: &str) -> AppResult<Vec<StoredCookie>> {
     let mut out = Vec::new();
     for raw in content.lines() {

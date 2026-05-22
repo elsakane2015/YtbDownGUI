@@ -179,13 +179,6 @@ export const logout = (siteId: string) => invoke<void>("logout", { siteId });
 export const exportCookiesNetscape = (siteId: string) =>
   invoke<string>("export_cookies_netscape", { siteId });
 
-// ---- browser-based login fallback (Windows) ----
-export const browserLoginStart = (siteId: string) =>
-  invoke<void>("browser_login_start", { siteId });
-
-export const browserLoginImport = (siteId: string, browser: string) =>
-  invoke<number>("browser_login_import", { siteId, browser });
-
 export const enqueueDownload = (req: EnqueueRequest) =>
   invoke<string>("enqueue_download", { req });
 

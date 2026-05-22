@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  browserLoginImport,
-  browserLoginStart,
   cancelLogin,
   exportCookiesNetscape,
   finishLogin,
@@ -13,26 +11,13 @@ import {
   type AccountStatus,
 } from "../lib/ipc";
 
-type ActiveLogin =
-  | null
-  | { kind: "embedded"; siteId: string }
-  | { kind: "browser"; siteId: string; browser: string };
+type ActiveLogin = null | { siteId: string };
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<AccountStatus[]>([]);
   const [activeLogin, setActiveLogin] = useState<ActiveLogin>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-
-  const platform =
-    typeof document !== "undefined"
-      ? document.body.dataset.platform ?? ""
-      : "";
-  // Firefox is currently the only browser whose cookies yt-dlp can
-  // reliably read on modern Windows: Chrome / Edge use App-Bound
-  // Encryption since 2024 which yt-dlp's DPAPI path can't decrypt
-  // (yt-dlp #10927). Firefox stores cookies in a plain SQLite DB.
-  const defaultBrowser = platform === "windows" ? "firefox" : "safari";
 
   const refresh = useCallback(async () => {
     try {
@@ -70,15 +55,14 @@ export default function AccountsPage() {
     };
   }, [refresh]);
 
-  // --- embedded WebView login ---
   const handleLogin = async (siteId: string) => {
     setBusy(siteId);
     try {
       await startLogin(siteId);
-      setActiveLogin({ kind: "embedded", siteId });
+      setActiveLogin({ siteId });
       setToast(
         `登录窗口已打开 (${siteId})。登录成功后会自动保存 cookies。` +
-          `如果窗口卡住，点这里下面的"取消"按钮强制关闭。`,
+          `如果窗口卡住，点下方"取消"按钮强制关闭。`,
       );
     } catch (e) {
       setToast(String(e));
@@ -88,8 +72,8 @@ export default function AccountsPage() {
   };
 
   const handleFinish = async () => {
-    if (!activeLogin || activeLogin.kind !== "embedded") return;
-    const siteId = activeLogin.siteId;
+    if (!activeLogin) return;
+    const { siteId } = activeLogin;
     setBusy(siteId);
     try {
       const n = await finishLogin(siteId);
@@ -102,46 +86,9 @@ export default function AccountsPage() {
     }
   };
 
-  // --- system-browser fallback login (Windows-friendly) ---
-  const handleBrowserLoginStart = async (siteId: string) => {
-    setBusy(siteId);
-    try {
-      await browserLoginStart(siteId);
-      setActiveLogin({ kind: "browser", siteId, browser: defaultBrowser });
-      setToast(
-        `已在系统默认浏览器中打开 ${siteId}。` +
-          (defaultBrowser === "firefox"
-            ? `登录完成后，完全关闭 Firefox（含后台进程），再点 "从 firefox 导入 cookies"。` +
-              `注意：Chrome / Edge 由于 App-Bound 加密通常无法导入；如果刚打开的不是 Firefox，请手动在 Firefox 里打开此站点登录。`
-            : `登录完成后，完全关闭 ${defaultBrowser}（含后台进程），再点 "从 ${defaultBrowser} 导入 cookies"。`),
-      );
-    } catch (e) {
-      setToast(String(e));
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const handleBrowserImport = async () => {
-    if (!activeLogin || activeLogin.kind !== "browser") return;
-    const { siteId, browser } = activeLogin;
-    setBusy(siteId);
-    try {
-      const n = await browserLoginImport(siteId, browser);
-      setToast(`从 ${browser} 导入了 ${n} 个 cookies (${siteId})`);
-      setActiveLogin(null);
-    } catch (e) {
-      setToast(`导入失败：${e}`);
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const handleCancel = async () => {
     try {
-      if (activeLogin?.kind === "embedded") {
-        await cancelLogin();
-      }
+      await cancelLogin();
     } finally {
       setActiveLogin(null);
     }
@@ -172,16 +119,7 @@ export default function AccountsPage() {
     <div className="page">
       <header className="page-header">
         <h2>账号管理</h2>
-        <p className="muted">
-          App 内置登录窗口接管 cookies 喂给 yt-dlp。
-          {platform === "windows" && (
-            <>
-              {" "}
-              Windows 上如果内嵌窗口仍白屏，可用"用浏览器登录"备选路径（建议在
-              Firefox 登录，再导入 cookies）。
-            </>
-          )}
-        </p>
+        <p className="muted">App 内置登录窗口接管 cookies 喂给 yt-dlp。</p>
       </header>
       <ul className="cards">
         {accounts.map((a) => {
@@ -198,23 +136,10 @@ export default function AccountsPage() {
                   </p>
                 </div>
                 <div className="card-actions">
-                  {isActive && activeLogin?.kind === "embedded" && (
+                  {isActive && (
                     <>
                       <button onClick={handleFinish} disabled={busy !== null}>
                         完成登录
-                      </button>
-                      <button onClick={handleCancel} className="secondary">
-                        取消
-                      </button>
-                    </>
-                  )}
-                  {isActive && activeLogin?.kind === "browser" && (
-                    <>
-                      <button
-                        onClick={handleBrowserImport}
-                        disabled={busy !== null}
-                      >
-                        从 {activeLogin.browser} 导入 cookies
                       </button>
                       <button onClick={handleCancel} className="secondary">
                         取消
@@ -229,16 +154,6 @@ export default function AccountsPage() {
                       >
                         {a.logged_in ? "重新登录" : "登录"}
                       </button>
-                      {platform === "windows" && (
-                        <button
-                          className="secondary"
-                          onClick={() => handleBrowserLoginStart(a.site_id)}
-                          disabled={activeLogin !== null || busy !== null}
-                          title="在系统默认浏览器中登录，登录完成后从浏览器读取 cookies"
-                        >
-                          用浏览器登录
-                        </button>
-                      )}
                       {a.logged_in && (
                         <button
                           onClick={() => handleExport(a.site_id)}

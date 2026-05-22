@@ -77,6 +77,14 @@ pub fn open(app: &AppHandle, site: &Site) -> AppResult<WebviewWindow> {
     .focused(true)
     .center()
     .transparent(false)
+    // Hide WebView2's automation markers so sites like Bilibili don't
+    // return 412 / bot-detection blocks. navigator.webdriver is true by
+    // default in WebView2; removing it makes the UA indistinguishable
+    // from a real Chrome session.
+    .initialization_script(
+        "Object.defineProperty(navigator,'webdriver',{get:()=>undefined,configurable:true});\
+         if(!window.chrome){window.chrome={runtime:{}};}",
+    )
     .on_page_load(move |win, payload| {
         let url = payload.url().to_string();
         if url.contains("login-stub.html") {
