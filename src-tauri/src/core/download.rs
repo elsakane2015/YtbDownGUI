@@ -404,12 +404,6 @@ async fn run_one_job(
         "after_move:[YTDLP_FINAL]%(filepath)s".into(),
     ];
 
-    // Force YouTube iOS + mweb clients for reliable format availability.
-    // Same reason as in probe.rs — the web client can return an empty
-    // format list for certain videos when run as a subprocess.
-    args.push("--extractor-args".into());
-    args.push("youtube:player_client=ios,mweb".into());
-
     // ffmpeg location: bundled sidecar path resolved at runtime
     if let Ok(ff) = bundled_ffmpeg_path(&app) {
         args.push("--ffmpeg-location".into());
