@@ -170,15 +170,15 @@ API：
 - [x] `GET /v1/billing/checkout-status`
 - [x] `GET /billing/success`
 - [x] `GET /billing/cancel`
-- [ ] `POST /v1/webhooks/stripe`
+- [x] `POST /v1/webhooks/stripe`
 
 Stripe events（需要处理的 Stripe 事件）：
 
-- [ ] `checkout.session.completed`
-- [ ] `checkout.session.async_payment_succeeded`
-- [ ] `checkout.session.async_payment_failed`
-- [ ] `charge.refunded`
-- [ ] `charge.dispute.created`
+- [x] `checkout.session.completed`
+- [x] `checkout.session.async_payment_succeeded`
+- [x] `checkout.session.async_payment_failed`
+- [x] `charge.refunded`
+- [x] `charge.dispute.created`
 
 实现要求：
 
@@ -187,26 +187,26 @@ Stripe events（需要处理的 Stripe 事件）：
 - [x] `/billing/success` 只展示“购买成功，激活码将发送到邮箱”，不承担发码逻辑。
 - [x] `/billing/cancel` 展示“购买已取消，可回到 App 重新购买”。
 - [x] Stripe SDK 初始化时固定 API version。
-- [ ] webhook 必须验签。
-- [ ] `/v1/webhooks/stripe` 必须使用 raw request body + `Stripe-Signature` 验签，不得在验签前 JSON parse。
-- [ ] webhook 必须幂等。
-- [ ] 只对已支付成功的一次性 Checkout 创建 license。
-- [ ] 同一个 `checkout_session_id` 不得生成多个 license。
-- [ ] license key 只在邮件和首次履约中明文出现。
-- [ ] DB 保存 license key hash。
-- [ ] license key 查询 hash 使用 `HMAC-SHA256(license_key, LICENSE_KEY_HASH_SECRET)`，不使用普通裸 hash。
-- [ ] 全额退款禁用 license。
-- [ ] 部分退款只记录审计日志。
+- [x] webhook 必须验签。
+- [x] `/v1/webhooks/stripe` 必须使用 raw request body + `Stripe-Signature` 验签，不得在验签前 JSON parse。
+- [x] webhook 必须幂等。
+- [x] 只对已支付成功的一次性 Checkout 创建 license。
+- [x] 同一个 `checkout_session_id` 不得生成多个 license。
+- [x] license key 只在邮件和首次履约中明文出现。
+- [x] DB 保存 license key hash。
+- [x] license key 查询 hash 使用 `HMAC-SHA256(license_key, LICENSE_KEY_HASH_SECRET)`，不使用普通裸 hash。
+- [x] 全额退款禁用 license。
+- [x] 部分退款只记录审计日志。
 
 验收：
 
 - [ ] Stripe test mode 完成支付后，服务端创建 license。
 - [x] Stripe 成功页和取消页能正常打开。
 - [x] 成功页即使打开失败，也不影响 webhook 发码。
-- [ ] 邮件发送成功并记录 `email_events`。
-- [ ] 重放同一个 webhook 不重复创建 license。
-- [ ] webhook body 被提前解析时的验签失败场景有测试覆盖。
-- [ ] 支付成功但邮件未收到时，可通过 `checkout-status` 或 `licenses/resend` 恢复。
+- [x] 邮件发送成功并记录 `email_events`。
+- [x] 重放同一个 webhook 不重复创建 license。
+- [x] webhook body 被提前解析时的验签失败场景有测试覆盖。
+- [x] 支付成功但邮件未收到时，可通过 `checkout-status` 或 `licenses/resend` 恢复。
 - [ ] 全额退款后 refresh/activate 不再返回 Pro token。
 
 ### Milestone 3: Free Quota Service（免费额度服务）
