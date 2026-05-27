@@ -136,7 +136,7 @@
 - [x] `db`
 - [ ] `crypto`
 - [x] `license-key`
-- [ ] `entitlement-token`
+- [x] `entitlement-token`
 - [ ] `email`
 - [ ] `rate-limit`
 - [ ] `audit-log`
@@ -144,9 +144,9 @@
 
 API：
 
-- [ ] `POST /v1/licenses/activate`
-- [ ] `POST /v1/licenses/refresh`
-- [ ] `POST /v1/licenses/deactivate`
+- [x] `POST /v1/licenses/activate`
+- [x] `POST /v1/licenses/refresh`
+- [x] `POST /v1/licenses/deactivate`
 - [ ] `POST /v1/licenses/send-transfer-code`
 - [ ] `POST /v1/licenses/activate-with-transfer-code`
 - [ ] `POST /v1/licenses/resend`
@@ -155,7 +155,7 @@ API：
 
 - [ ] 可手动 seed 一个 active license。
 - [ ] App 或 curl 输入 license key 可激活设备。
-- [ ] token payload 包含 `license_id`、`device_id`、`plan`、`iat`、`exp`。
+- [x] token payload 包含 `license_id`、`device_id`、`plan`、`iat`、`exp`。
 - [ ] 同一设备再次激活只刷新 token，不新增设备。
 - [ ] 第 4 台设备触发自动迁移或验证码流程。
 
@@ -551,7 +551,7 @@ TERMS_URL=
 
 - [x] license key generation uniqueness and format.
 - [ ] license key hash lookup.
-- [ ] token signing and verification.
+- [x] token signing and verification.
 - [ ] activation limit.
 - [ ] idle-device auto migration.
 - [ ] active-device transfer code flow.
