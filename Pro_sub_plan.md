@@ -166,10 +166,10 @@ API：
 
 服务端 API：
 
-- [ ] `POST /v1/billing/create-checkout-session`
-- [ ] `GET /v1/billing/checkout-status`
-- [ ] `GET /billing/success`
-- [ ] `GET /billing/cancel`
+- [x] `POST /v1/billing/create-checkout-session`
+- [x] `GET /v1/billing/checkout-status`
+- [x] `GET /billing/success`
+- [x] `GET /billing/cancel`
 - [ ] `POST /v1/webhooks/stripe`
 
 Stripe events（需要处理的 Stripe 事件）：
@@ -182,11 +182,11 @@ Stripe events（需要处理的 Stripe 事件）：
 
 实现要求：
 
-- [ ] Checkout 使用 Stripe Price `lookup_key=ytbdown_pro_lifetime_current` 查找当前有效价格，不把具体 price id 写死进业务逻辑。
-- [ ] Checkout Session 配置 `success_url=/billing/success?session_id={CHECKOUT_SESSION_ID}` 和 `cancel_url=/billing/cancel`。
-- [ ] `/billing/success` 只展示“购买成功，激活码将发送到邮箱”，不承担发码逻辑。
-- [ ] `/billing/cancel` 展示“购买已取消，可回到 App 重新购买”。
-- [ ] Stripe SDK 初始化时固定 API version。
+- [x] Checkout 使用 Stripe Price `lookup_key=ytbdown_pro_lifetime_current` 查找当前有效价格，不把具体 price id 写死进业务逻辑。
+- [x] Checkout Session 配置 `success_url=/billing/success?session_id={CHECKOUT_SESSION_ID}` 和 `cancel_url=/billing/cancel`。
+- [x] `/billing/success` 只展示“购买成功，激活码将发送到邮箱”，不承担发码逻辑。
+- [x] `/billing/cancel` 展示“购买已取消，可回到 App 重新购买”。
+- [x] Stripe SDK 初始化时固定 API version。
 - [ ] webhook 必须验签。
 - [ ] `/v1/webhooks/stripe` 必须使用 raw request body + `Stripe-Signature` 验签，不得在验签前 JSON parse。
 - [ ] webhook 必须幂等。
@@ -201,8 +201,8 @@ Stripe events（需要处理的 Stripe 事件）：
 验收：
 
 - [ ] Stripe test mode 完成支付后，服务端创建 license。
-- [ ] Stripe 成功页和取消页能正常打开。
-- [ ] 成功页即使打开失败，也不影响 webhook 发码。
+- [x] Stripe 成功页和取消页能正常打开。
+- [x] 成功页即使打开失败，也不影响 webhook 发码。
 - [ ] 邮件发送成功并记录 `email_events`。
 - [ ] 重放同一个 webhook 不重复创建 license。
 - [ ] webhook body 被提前解析时的验签失败场景有测试覆盖。
