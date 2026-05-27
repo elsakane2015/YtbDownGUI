@@ -139,9 +139,9 @@
 - [x] `license-key`
 - [x] `entitlement-token`
 - [x] `email`
-- [ ] `rate-limit`
+- [x] `rate-limit`
 - [x] `audit-log`
-- [ ] `support`
+- [x] `support`
 
 API：
 
