@@ -13,11 +13,11 @@
 - 服务端私仓：`/Users/xue/Documents/vscode/ytbdown-license-server`
   - GitHub：`https://github.com/elsakane2015/ytbdown-license-server.git`
   - 分支：`main`
-  - 职责：Stripe webhook、license key 生成、邮件发送、设备激活、token 签发、免费额度服务端计数。
+  - 职责：Stripe webhook、WooCommerce webhook、外部订单履约、license key 生成、邮件发送、设备激活、token 签发、免费额度服务端计数。
 
 开发原则：
 
-- 客户端不保存 Stripe secret、邮件 API key、token 签名私钥。
+- 客户端不保存 Stripe、WooCommerce、咸鱼、微店、邮件 API key、token 签名私钥。
 - 服务端是授权事实来源。
 - 客户端只能内置 token 验签公钥和 License Server URL。
 - 免费额度最终以服务端计数为准，本地只缓存。
@@ -26,7 +26,8 @@
 
 ## 2. Final Product Decisions（最终产品决策）
 
-- 购买方式：Stripe 一次性付款，不做订阅。
+- 购买方式：一次性买断，不做订阅。
+- 默认保留 Stripe Checkout，同时增加咸鱼、微店、自建 WordPress / WooCommerce 等外部订单履约能力。
 - 用户体系：不做账号密码，使用购买邮箱 + license key。
 - License key 格式：`YTB-XXXX-XXXX-XXXX-XXXX`。
 - Pro 设备数：默认 3 台活跃设备。
@@ -57,6 +58,7 @@
 - Email（邮件服务）：Resend。
 - Stripe 支付：官方 `stripe` Node SDK。
 - Stripe API version：在服务端代码中固定，避免默认版本变化影响 webhook payload。
+- 外部渠道：统一落到 License Server 的 order fulfillment（订单履约）模块，不在客户端内接入支付平台。
 - Token signing（token 签名）：Ed25519，使用 `jose` 或 `@noble/ed25519`。
 - Tests（测试）：Vitest。
 - Local dev（本地开发）：Docker Compose 启动 PostgreSQL。
@@ -208,6 +210,60 @@ Stripe events（需要处理的 Stripe 事件）：
 - [x] webhook body 被提前解析时的验签失败场景有测试覆盖。
 - [x] 支付成功但邮件未收到时，可通过 `checkout-status` 或 `licenses/resend` 恢复。
 - [x] 全额退款后 refresh/activate 不再返回 Pro token。
+
+### Milestone 2B: External Order Fulfillment（外部订单履约）
+
+目标：在保留 Stripe 的基础上，支持咸鱼、微店、自建 WordPress / WooCommerce 购买后发放 Pro license。
+
+渠道策略：
+
+- [ ] 咸鱼：要求买家提交购买邮箱，订单确认后通过后台录入或订单导入触发发货。
+- [ ] 微店：要求买家提交购买邮箱，优先接入可用 webhook / API；没有稳定 API 时走订单导入或后台确认。
+- [ ] WordPress / WooCommerce：作为优先自动化渠道，通过 WooCommerce webhook 通知 License Server。
+- [ ] 所有渠道统一使用购买邮箱 + license key 激活，不新增账号密码体系。
+- [ ] 邮件自动发货是主路径；平台站内消息只作为辅助路径。
+- [ ] 不使用模拟登录、爬虫或不稳定浏览器自动化作为 v1 发货关键路径。
+
+服务端数据模型：
+
+- [ ] 增加 `orders` 或等价订单表，记录外部订单。
+- [ ] 订单字段包含 `source`、`external_order_id`、`buyer_email`、`status`、`amount`、`currency`、`raw_payload`。
+- [ ] `source + external_order_id` 必须唯一，避免重复发货。
+- [ ] license 记录关联 `order_id`，并保留已有 Stripe 关联字段。
+- [ ] `source` 至少支持 `stripe`、`xianyu`、`weidian`、`woocommerce`、`manual`。
+
+服务端 API：
+
+- [ ] `POST /v1/orders/manual-fulfill`：后台手动创建或确认外部订单并发 license。
+- [ ] `POST /v1/webhooks/woocommerce`：接收 WooCommerce 已付款订单 webhook。
+- [ ] `POST /v1/orders/import`：批量导入咸鱼/微店订单 CSV 或 JSON。
+- [ ] `GET /v1/orders/:id`：查询订单履约状态。
+- [ ] `POST /v1/orders/:id/resend`：重发该订单 license 邮件。
+
+安全要求：
+
+- [ ] 后台履约接口必须有 admin token 或更强后台认证，不能公开调用。
+- [ ] WooCommerce webhook 必须校验签名或共享密钥。
+- [ ] 订单导入必须校验邮箱格式、订单号、渠道来源。
+- [ ] 不在客户端保存咸鱼、微店、WordPress、WooCommerce 的任何后台凭据。
+- [ ] 对重复订单、退款订单、异常订单写入 audit log。
+
+发货规则：
+
+- [ ] 已付款订单才创建 license。
+- [ ] 同一个外部订单号重复提交时，不重复创建 license。
+- [ ] 邮件发送失败不回滚 license，但记录失败状态，允许重发。
+- [ ] 如平台支持站内消息 API，可在邮件成功后附加发送站内消息；失败不影响邮件主发货。
+- [ ] 如果平台不支持站内消息 API，后台显示可复制的发货文本，由人工发送到平台对话。
+
+验收：
+
+- [ ] 手动录入咸鱼订单后，服务端生成 license 并发送邮件。
+- [ ] 重复录入同一咸鱼订单不会重复发 license。
+- [ ] 导入微店订单后，已付款订单自动发货，未付款订单不发货。
+- [ ] WooCommerce 测试订单支付完成后，webhook 自动创建 license 并发邮件。
+- [ ] 外部订单 license 可在客户端正常激活。
+- [ ] 外部订单退款或人工禁用后，refresh/activate 不再返回 Pro token。
 
 ### Milestone 3: Free Quota Service（免费额度服务）
 
@@ -636,12 +692,13 @@ Recommended order:
 4. Device activation and migration.
 5. Free quota APIs.
 6. Stripe Checkout and webhook fulfillment.
-7. Email sending and resend.
-8. Client entitlement store and token verification.
-9. Client download enforcement.
-10. Client Pro UI.
-11. Full E2E integration.
-12. Production rollout.
+7. External order fulfillment for 咸鱼 / 微店 / WooCommerce.
+8. Email sending and resend.
+9. Client entitlement store and token verification.
+10. Client download enforcement.
+11. Client Pro UI.
+12. Full E2E integration.
+13. Production rollout.
 
 Reasoning:
 
@@ -657,6 +714,11 @@ Reasoning:
   - 实际价格在 Stripe Dashboard 中配置。
   - 服务端使用 Stripe Price lookup key：`ytbdown_pro_lifetime_current`。
   - 以后调价在 Stripe 控制台创建新 Price，并切换 lookup key 指向当前价格，不需要发新版客户端。
+- [x] 增加非 Stripe 购买渠道。
+  - Stripe 因主体资质限制可能无法作为唯一收款方式。
+  - v1 支持咸鱼、微店、自建 WordPress / WooCommerce 的外部订单履约。
+  - 所有渠道统一由 License Server 创建 license 和发送邮件。
+  - 邮件自动发货是主路径，平台站内消息为辅助。
 - [x] 邮件服务默认使用 Resend。
 - [x] 服务端部署平台默认使用现有 VPS。
   - 推荐 Docker Compose 部署 Node.js API、PostgreSQL、反向代理。
