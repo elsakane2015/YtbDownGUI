@@ -100,6 +100,7 @@
 - [x] 在 API contract 中明确所有错误响应格式：`code`、`message`、可选 `details`。
 - [x] 增加隐私政策 / 服务条款最小页面或文档，说明邮箱、设备名、IP、安装 ID、激活日志的用途。
 - [x] 增加 Caddy 反代真实 IP 处理：传递 `X-Forwarded-For` / `X-Real-IP`，Fastify 只信任可信反代。
+- [x] 增加本地 Docker Compose PostgreSQL 和 `dev:setup` 初始化脚本。
 
 客户端：
 
@@ -120,15 +121,15 @@
 
 服务端数据表：
 
-- [ ] `licenses`
-- [ ] `devices`
-- [ ] `license_tokens`
-- [ ] `stripe_events`
-- [ ] `device_transfer_events`
-- [ ] `free_quota_installations`
-- [ ] `free_quota_reservations`
-- [ ] `email_events`
-- [ ] `audit_logs`
+- [x] `licenses`
+- [x] `devices`
+- [x] `license_tokens`
+- [x] `stripe_events`
+- [x] `device_transfer_events`
+- [x] `free_quota_installations`
+- [x] `free_quota_reservations`
+- [x] `email_events`
+- [x] `audit_logs`
 
 服务端核心模块：
 
@@ -153,10 +154,10 @@ API：
 
 验收：
 
-- [ ] 可手动 seed 一个 active license。
-- [ ] App 或 curl 输入 license key 可激活设备。
+- [x] 可手动 seed 一个 active license。
+- [x] App 或 curl 输入 license key 可激活设备。
 - [x] token payload 包含 `license_id`、`device_id`、`plan`、`iat`、`exp`。
-- [ ] 同一设备再次激活只刷新 token，不新增设备。
+- [x] 同一设备再次激活只刷新 token，不新增设备。
 - [ ] 第 4 台设备触发自动迁移或验证码流程。
 
 ### Milestone 2: Stripe Fulfillment
@@ -550,7 +551,7 @@ TERMS_URL=
 ### Server Unit Tests
 
 - [x] license key generation uniqueness and format.
-- [ ] license key hash lookup.
+- [x] license key hash lookup.
 - [x] token signing and verification.
 - [ ] activation limit.
 - [ ] idle-device auto migration.
