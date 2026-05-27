@@ -132,10 +132,10 @@
 
 服务端核心模块：
 
-- [ ] `config`
-- [ ] `db`
+- [x] `config`
+- [x] `db`
 - [ ] `crypto`
-- [ ] `license-key`
+- [x] `license-key`
 - [ ] `entitlement-token`
 - [ ] `email`
 - [ ] `rate-limit`
@@ -549,7 +549,7 @@ TERMS_URL=
 
 ### Server Unit Tests
 
-- [ ] license key generation uniqueness and format.
+- [x] license key generation uniqueness and format.
 - [ ] license key hash lookup.
 - [ ] token signing and verification.
 - [ ] activation limit.
@@ -562,7 +562,7 @@ TERMS_URL=
 - [ ] free quota reserve / confirm / release.
 - [ ] free quota reservation idempotency.
 - [ ] reservation expiration cleanup.
-- [ ] license key HMAC lookup.
+- [x] license key HMAC lookup.
 - [ ] token `kid` key rotation support.
 - [ ] Stripe API version is pinned in SDK initialization.
 - [ ] Caddy / trusted proxy IP handling can be configured safely.
