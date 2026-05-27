@@ -93,13 +93,13 @@
 
 服务端：
 
-- [ ] 初始化 TypeScript / Fastify / Prisma 项目。
-- [ ] 增加 `.env.example`，不得提交真实密钥。
-- [ ] 增加 `docs/api.md` 或 OpenAPI spec。
-- [ ] 增加 health endpoint：`GET /healthz`。
-- [ ] 在 API contract 中明确所有错误响应格式：`code`、`message`、可选 `details`。
-- [ ] 增加隐私政策 / 服务条款最小页面或文档，说明邮箱、设备名、IP、安装 ID、激活日志的用途。
-- [ ] 增加 Caddy 反代真实 IP 处理：传递 `X-Forwarded-For` / `X-Real-IP`，Fastify 只信任可信反代。
+- [x] 初始化 TypeScript / Fastify / Prisma 项目。
+- [x] 增加 `.env.example`，不得提交真实密钥。
+- [x] 增加 `docs/api.md` 或 OpenAPI spec。
+- [x] 增加 health endpoint：`GET /healthz`。
+- [x] 在 API contract 中明确所有错误响应格式：`code`、`message`、可选 `details`。
+- [x] 增加隐私政策 / 服务条款最小页面或文档，说明邮箱、设备名、IP、安装 ID、激活日志的用途。
+- [x] 增加 Caddy 反代真实 IP 处理：传递 `X-Forwarded-For` / `X-Real-IP`，Fastify 只信任可信反代。
 
 客户端：
 
@@ -110,9 +110,9 @@
 
 验收：
 
-- [ ] 服务端可本地启动。
-- [ ] `/healthz` 返回 `200`。
-- [ ] API contract 文件存在。
+- [x] 服务端可本地启动。
+- [x] `/healthz` 返回 `200`。
+- [x] API contract 文件存在。
 
 ### Milestone 1: License Server Core
 
@@ -602,8 +602,8 @@ TERMS_URL=
 ## 8. Rollout Checklist
 
 - [x] `Pro_sub_plan.md` committed to client `pro-dev`.
-- [ ] Server repository initialized with TypeScript/Fastify/Prisma.
-- [ ] API contract committed in both repos or linked from server docs.
+- [x] Server repository initialized with TypeScript/Fastify/Prisma.
+- [x] API contract committed in both repos or linked from server docs.
 - [ ] Stripe test product and price created.
 - [ ] Stripe Price lookup key `ytbdown_pro_lifetime_current` configured.
 - [ ] Stripe test webhook configured.
@@ -687,6 +687,6 @@ Reasoning:
 - [x] 客户端已记录方案：`Pro_sub.md`。
 - [x] 服务端私仓已创建并记录方案：`Pro_sub.md`。
 - [x] 客户端开发计划已创建：`Pro_sub_plan.md`。
-- [ ] 服务端项目骨架尚未初始化。
+- [x] 服务端项目骨架已初始化。
 - [ ] 客户端授权代码尚未实现。
 - [ ] Stripe test mode 尚未接入。
