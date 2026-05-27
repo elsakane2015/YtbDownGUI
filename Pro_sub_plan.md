@@ -135,12 +135,12 @@
 
 - [x] `config`
 - [x] `db`
-- [ ] `crypto`
+- [x] `crypto`
 - [x] `license-key`
 - [x] `entitlement-token`
-- [ ] `email`
+- [x] `email`
 - [ ] `rate-limit`
-- [ ] `audit-log`
+- [x] `audit-log`
 - [ ] `support`
 
 API：
@@ -148,8 +148,8 @@ API：
 - [x] `POST /v1/licenses/activate`
 - [x] `POST /v1/licenses/refresh`
 - [x] `POST /v1/licenses/deactivate`
-- [ ] `POST /v1/licenses/send-transfer-code`
-- [ ] `POST /v1/licenses/activate-with-transfer-code`
+- [x] `POST /v1/licenses/send-transfer-code`
+- [x] `POST /v1/licenses/activate-with-transfer-code`
 - [ ] `POST /v1/licenses/resend`
 
 验收：
@@ -158,7 +158,7 @@ API：
 - [x] App 或 curl 输入 license key 可激活设备。
 - [x] token payload 包含 `license_id`、`device_id`、`plan`、`iat`、`exp`。
 - [x] 同一设备再次激活只刷新 token，不新增设备。
-- [ ] 第 4 台设备触发自动迁移或验证码流程。
+- [x] 第 4 台设备触发自动迁移或验证码流程。
 
 ### Milestone 2: Stripe Fulfillment
 
