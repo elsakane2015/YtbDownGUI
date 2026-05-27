@@ -215,33 +215,33 @@ Stripe events（需要处理的 Stripe 事件）：
 
 服务端 API：
 
-- [ ] `POST /v1/free-quota/status`
-- [ ] `POST /v1/free-quota/reserve`
-- [ ] `POST /v1/free-quota/confirm`
-- [ ] `POST /v1/free-quota/release`
+- [x] `POST /v1/free-quota/status`
+- [x] `POST /v1/free-quota/reserve`
+- [x] `POST /v1/free-quota/confirm`
+- [x] `POST /v1/free-quota/release`
 
 核心规则：
 
-- [ ] `installation_id` 是免费额度主键。
-- [ ] 默认 limit = 10。
-- [ ] reserve 可一次预留多个下载名额，用于批量下载。
-- [ ] confirm 只确认成功下载。
-- [ ] release 释放失败或取消下载的预留。
-- [ ] reservation 必须有过期时间，避免客户端崩溃后永久占用额度。
-- [ ] reserve 返回 `reservation_id`，confirm/release 必须携带 `reservation_id`。
-- [ ] reserve/confirm/release 必须幂等，重复请求不能重复扣减或重复释放。
-- [ ] 对 IP + `installation_id` 做基础限流，降低脚本刷免费额度接口风险。
+- [x] `installation_id` 是免费额度主键。
+- [x] 默认 limit = 10。
+- [x] reserve 可一次预留多个下载名额，用于批量下载。
+- [x] confirm 只确认成功下载。
+- [x] release 释放失败或取消下载的预留。
+- [x] reservation 必须有过期时间，避免客户端崩溃后永久占用额度。
+- [x] reserve 返回 `reservation_id`，confirm/release 必须携带 `reservation_id`。
+- [x] reserve/confirm/release 必须幂等，重复请求不能重复扣减或重复释放。
+- [x] 对 IP + `installation_id` 做基础限流，降低脚本刷免费额度接口风险。
 
 验收：
 
-- [ ] 新 `installation_id` 剩余额度为 10。
+- [x] 新 `installation_id` 剩余额度为 10。
 - [ ] 首次启动且没有本地额度缓存时，必须联网初始化免费额度。
 - [ ] 首次启动且服务端不可用时，免费下载被拒绝并显示需要联网同步。
-- [ ] 成功 confirm 10 次后，第 11 次 reserve 被拒绝。
-- [ ] 失败或取消 release 后额度恢复。
-- [ ] 过期 reservation 可被后台任务清理。
-- [ ] 重复 confirm 同一个 `reservation_id` 只扣一次。
-- [ ] 重复 release 同一个 `reservation_id` 只释放一次。
+- [x] 成功 confirm 10 次后，第 11 次 reserve 被拒绝。
+- [x] 失败或取消 release 后额度恢复。
+- [x] 过期 reservation 可被后台任务清理。
+- [x] 重复 confirm 同一个 `reservation_id` 只扣一次。
+- [x] 重复 release 同一个 `reservation_id` 只释放一次。
 
 ### Milestone 4: Client Entitlement Foundation（客户端授权基础能力）
 
@@ -542,6 +542,9 @@ TOKEN_PUBLIC_KEY=
 TOKEN_KEY_ID=
 LICENSE_KEY_HASH_SECRET=
 LICENSE_RESEND_LIMIT_PER_24_HOURS=
+FREE_QUOTA_LIMIT=
+FREE_QUOTA_RATE_LIMIT_PER_24_HOURS=
+FREE_QUOTA_RESERVATION_TTL_MINUTES=
 APP_PUBLIC_URL=
 PRIVACY_URL=
 TERMS_URL=
@@ -561,9 +564,9 @@ TERMS_URL=
 - [ ] Stripe raw body signature verification（Stripe raw body 签名校验）。
 - [ ] full refund disables license（全额退款后禁用 license）。
 - [ ] partial refund does not disable license（部分退款不禁用 license）。
-- [ ] free quota reserve / confirm / release（免费额度预留、确认、释放）。
-- [ ] free quota reservation idempotency（免费额度 reservation 幂等）。
-- [ ] reservation expiration cleanup（过期 reservation 清理）。
+- [x] free quota reserve / confirm / release（免费额度预留、确认、释放）。
+- [x] free quota reservation idempotency（免费额度 reservation 幂等）。
+- [x] reservation expiration cleanup（过期 reservation 清理）。
 - [x] license key HMAC lookup（license key 使用 HMAC 查询）。
 - [ ] token `kid` key rotation support（token `kid` 密钥轮换支持）。
 - [ ] Stripe API version is pinned in SDK initialization（Stripe SDK 初始化时固定 API 版本）。
