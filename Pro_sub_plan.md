@@ -150,7 +150,7 @@ API：
 - [x] `POST /v1/licenses/deactivate`
 - [x] `POST /v1/licenses/send-transfer-code`
 - [x] `POST /v1/licenses/activate-with-transfer-code`
-- [ ] `POST /v1/licenses/resend`
+- [x] `POST /v1/licenses/resend`
 
 验收：
 
@@ -496,6 +496,7 @@ Pro 示例：
 - `transfer_code_required`
 - `transfer_code_invalid`
 - `transfer_rate_limited`
+- `license_resend_rate_limited`
 - `server_unreachable`
 - `token_expired`
 
@@ -515,8 +516,7 @@ pnpm tauri dev
 ```bash
 cd /Users/xue/Documents/vscode/ytbdown-license-server
 pnpm install
-docker compose up -d
-pnpm prisma migrate dev
+pnpm dev:setup
 pnpm dev
 ```
 
@@ -541,6 +541,7 @@ TOKEN_PRIVATE_KEY=
 TOKEN_PUBLIC_KEY=
 TOKEN_KEY_ID=
 LICENSE_KEY_HASH_SECRET=
+LICENSE_RESEND_LIMIT_PER_24_HOURS=
 APP_PUBLIC_URL=
 PRIVACY_URL=
 TERMS_URL=
