@@ -207,7 +207,7 @@ Stripe events（需要处理的 Stripe 事件）：
 - [x] 重放同一个 webhook 不重复创建 license。
 - [x] webhook body 被提前解析时的验签失败场景有测试覆盖。
 - [x] 支付成功但邮件未收到时，可通过 `checkout-status` 或 `licenses/resend` 恢复。
-- [ ] 全额退款后 refresh/activate 不再返回 Pro token。
+- [x] 全额退款后 refresh/activate 不再返回 Pro token。
 
 ### Milestone 3: Free Quota Service（免费额度服务）
 
