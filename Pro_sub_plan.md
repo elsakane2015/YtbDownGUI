@@ -1,6 +1,6 @@
-# Pro Development Plan
+# Pro Development Plan（Pro 开发计划）
 
-## 1. Scope
+## 1. Scope（范围）
 
 本计划基于 `Pro_sub.md`，用于推进 YtbDown Pro 一次性买断授权开发。
 
@@ -24,7 +24,7 @@
 - Pro 是一次性买断，license 永久有效；客户端 token 有效期 7 天。
 - 免费版和 Pro 使用同一个 App、同一个 Tauri `identifier`、同一个安装包；Pro 只通过 license 解锁，不另做 Pro App。
 
-## 2. Final Product Decisions
+## 2. Final Product Decisions（最终产品决策）
 
 - 购买方式：Stripe 一次性付款，不做订阅。
 - 用户体系：不做账号密码，使用购买邮箱 + license key。
@@ -46,21 +46,21 @@
   - 免费用户只可用本地缓存额度，缓存用完必须联网同步。
   - 首次启动且没有免费额度缓存时，必须联网初始化额度；服务端不可用时不允许免费下载。
 
-## 3. Recommended Technical Stack
+## 3. Recommended Technical Stack（推荐技术栈）
 
 服务端私仓建议使用：
 
-- Runtime：Node.js 22 + TypeScript。
-- HTTP：Fastify。
-- DB：PostgreSQL。
-- ORM / migrations：Prisma。
-- Email：Resend。
-- Stripe：官方 `stripe` Node SDK。
+- Runtime（运行时）：Node.js 22 + TypeScript。
+- HTTP 框架：Fastify。
+- DB（数据库）：PostgreSQL。
+- ORM / migrations（数据库访问和迁移）：Prisma。
+- Email（邮件服务）：Resend。
+- Stripe 支付：官方 `stripe` Node SDK。
 - Stripe API version：在服务端代码中固定，避免默认版本变化影响 webhook payload。
-- Token signing：Ed25519，使用 `jose` 或 `@noble/ed25519`。
-- Tests：Vitest。
-- Local dev：Docker Compose 启动 PostgreSQL。
-- Production deploy：优先使用现有 VPS，跑 Node.js 服务 + PostgreSQL + Caddy 反向代理。
+- Token signing（token 签名）：Ed25519，使用 `jose` 或 `@noble/ed25519`。
+- Tests（测试）：Vitest。
+- Local dev（本地开发）：Docker Compose 启动 PostgreSQL。
+- Production deploy（生产部署）：优先使用现有 VPS，跑 Node.js 服务 + PostgreSQL + Caddy 反向代理。
 
 部署建议：
 
@@ -78,7 +78,7 @@
 - Rust key storage：`keyring` crate。
 - Rust token verification：Ed25519 verifier crate，例如 `ed25519-dalek`。
 
-## 4. Milestone Overview
+## 4. Milestone Overview（里程碑总览）
 
 进度规则：
 
@@ -87,7 +87,7 @@
 - `[x]` 完成。
 - 每完成一项开发或验证，就在本文件里勾选对应 TODO。
 
-### Milestone 0: Repo and Contract Setup
+### Milestone 0: Repo and Contract Setup（仓库和接口契约初始化）
 
 目标：先固定联动接口，避免客户端和服务端各写各的。
 
@@ -115,7 +115,7 @@
 - [x] `/healthz` 返回 `200`。
 - [x] API contract 文件存在。
 
-### Milestone 1: License Server Core
+### Milestone 1: License Server Core（授权服务端核心能力）
 
 目标：服务端先具备 license、设备、token、邮件的核心能力。
 
@@ -160,7 +160,7 @@ API：
 - [x] 同一设备再次激活只刷新 token，不新增设备。
 - [x] 第 4 台设备触发自动迁移或验证码流程。
 
-### Milestone 2: Stripe Fulfillment
+### Milestone 2: Stripe Fulfillment（Stripe 支付履约）
 
 目标：Stripe 一次性付款后自动生成 license 并发邮件。
 
@@ -172,7 +172,7 @@ API：
 - [ ] `GET /billing/cancel`
 - [ ] `POST /v1/webhooks/stripe`
 
-Stripe events：
+Stripe events（需要处理的 Stripe 事件）：
 
 - [ ] `checkout.session.completed`
 - [ ] `checkout.session.async_payment_succeeded`
@@ -209,7 +209,7 @@ Stripe events：
 - [ ] 支付成功但邮件未收到时，可通过 `checkout-status` 或 `licenses/resend` 恢复。
 - [ ] 全额退款后 refresh/activate 不再返回 Pro token。
 
-### Milestone 3: Free Quota Service
+### Milestone 3: Free Quota Service（免费额度服务）
 
 目标：免费 10 次额度由服务端计数，避免普通重装重置。
 
@@ -243,7 +243,7 @@ Stripe events：
 - [ ] 重复 confirm 同一个 `reservation_id` 只扣一次。
 - [ ] 重复 release 同一个 `reservation_id` 只释放一次。
 
-### Milestone 4: Client Entitlement Foundation
+### Milestone 4: Client Entitlement Foundation（客户端授权基础能力）
 
 目标：客户端具备 Pro 状态、本地 token 验签、系统安全存储和服务端通信能力。
 
@@ -291,7 +291,7 @@ IPC：
 - [ ] token 未过期但服务端不可用时，Pro 仍可用。
 - [ ] token 过期后触发 refresh 或 emergency grace。
 
-### Milestone 5: Client Download Enforcement
+### Milestone 5: Client Download Enforcement（客户端下载限制强制执行）
 
 目标：下载限制必须由 Rust 后端强制执行，前端只做提示。
 
@@ -330,7 +330,7 @@ IPC：
 - [ ] 文件已存在 skipped 不消耗额度。
 - [ ] 直接调用 Tauri invoke 也无法绕过限制。
 
-### Milestone 6: Client UI
+### Milestone 6: Client UI（客户端界面）
 
 目标：用户能购买、激活、查看状态、处理换机验证码。
 
@@ -363,7 +363,7 @@ IPC：
 - [ ] 激活失败原因能区分：无效 key、设备满且需要验证码、验证码错误、网络失败、license 被禁用。
 - [ ] 服务端不可用时 UI 能说明当前离线授权剩余时间。
 
-### Milestone 7: End-to-End Integration
+### Milestone 7: End-to-End Integration（端到端联调）
 
 目标：完整支付到激活到下载链路跑通。
 
@@ -387,7 +387,7 @@ IPC：
 - [ ] 断网时未过期 token 可用。
 - [ ] 设备满额自动迁移和验证码迁移均可验证。
 
-### Milestone 8: Release Preparation
+### Milestone 8: Release Preparation（发布准备）
 
 目标：准备正式上线。
 
@@ -424,9 +424,9 @@ IPC：
 - [ ] App 激活 production license 成功。
 - [ ] 退款禁用路径验证成功。
 
-## 5. API Contract Summary
+## 5. API Contract Summary（接口契约摘要）
 
-### Entitlement Status
+### Entitlement Status（授权状态）
 
 客户端统一使用以下状态结构：
 
@@ -462,7 +462,7 @@ Pro 示例：
 }
 ```
 
-### Activation Result
+### Activation Result（激活结果）
 
 ```json
 {
@@ -484,7 +484,7 @@ Pro 示例：
 }
 ```
 
-### Error Codes
+### Error Codes（错误码）
 
 客户端需要识别这些错误码：
 
@@ -499,9 +499,9 @@ Pro 示例：
 - `server_unreachable`
 - `token_expired`
 
-## 6. Local Development Workflow
+## 6. Local Development Workflow（本地开发流程）
 
-### Client
+### Client（客户端）
 
 ```bash
 cd /Users/xue/Documents/vscode/YtbDown
@@ -510,7 +510,7 @@ pnpm install
 pnpm tauri dev
 ```
 
-### Server
+### Server（服务端）
 
 ```bash
 cd /Users/xue/Documents/vscode/ytbdown-license-server
@@ -520,13 +520,13 @@ pnpm prisma migrate dev
 pnpm dev
 ```
 
-### Stripe Webhook Local Test
+### Stripe Webhook Local Test（Stripe Webhook 本地测试）
 
 ```bash
 stripe listen --forward-to localhost:3000/v1/webhooks/stripe
 ```
 
-`.env.example` must include placeholders only:
+`.env.example` 只能包含占位符，不能写入真实密钥：
 
 ```text
 DATABASE_URL=
@@ -546,81 +546,81 @@ PRIVACY_URL=
 TERMS_URL=
 ```
 
-## 7. Testing Matrix
+## 7. Testing Matrix（测试矩阵）
 
-### Server Unit Tests
+### Server Unit Tests（服务端单元测试）
 
-- [x] license key generation uniqueness and format.
-- [x] license key hash lookup.
-- [x] token signing and verification.
-- [ ] activation limit.
-- [ ] idle-device auto migration.
-- [ ] active-device transfer code flow.
-- [ ] webhook idempotency.
-- [ ] Stripe raw body signature verification.
-- [ ] full refund disables license.
-- [ ] partial refund does not disable license.
-- [ ] free quota reserve / confirm / release.
-- [ ] free quota reservation idempotency.
-- [ ] reservation expiration cleanup.
-- [x] license key HMAC lookup.
-- [ ] token `kid` key rotation support.
-- [ ] Stripe API version is pinned in SDK initialization.
-- [ ] Caddy / trusted proxy IP handling can be configured safely.
+- [x] license key generation uniqueness and format（license key 生成唯一性和格式）。
+- [x] license key hash lookup（license key hash 查询）。
+- [x] token signing and verification（token 签名和验签）。
+- [ ] activation limit（设备激活数量限制）。
+- [ ] idle-device auto migration（闲置设备自动迁移）。
+- [ ] active-device transfer code flow（活跃设备满额时的邮箱验证码迁移流程）。
+- [ ] webhook idempotency（webhook 幂等处理）。
+- [ ] Stripe raw body signature verification（Stripe raw body 签名校验）。
+- [ ] full refund disables license（全额退款后禁用 license）。
+- [ ] partial refund does not disable license（部分退款不禁用 license）。
+- [ ] free quota reserve / confirm / release（免费额度预留、确认、释放）。
+- [ ] free quota reservation idempotency（免费额度 reservation 幂等）。
+- [ ] reservation expiration cleanup（过期 reservation 清理）。
+- [x] license key HMAC lookup（license key 使用 HMAC 查询）。
+- [ ] token `kid` key rotation support（token `kid` 密钥轮换支持）。
+- [ ] Stripe API version is pinned in SDK initialization（Stripe SDK 初始化时固定 API 版本）。
+- [ ] Caddy / trusted proxy IP handling can be configured safely（Caddy 和可信反代 IP 可安全配置）。
 
-### Client Unit Tests
+### Client Unit Tests（客户端单元测试）
 
-- [ ] entitlement status parsing.
-- [ ] token expiry handling.
-- [ ] emergency grace calculation.
-- [ ] quota error mapping.
-- [ ] download state to quota confirm/release mapping.
+- [ ] entitlement status parsing（授权状态解析）。
+- [ ] token expiry handling（token 过期处理）。
+- [ ] emergency grace calculation（服务端故障时的紧急宽限期计算）。
+- [ ] quota error mapping（免费额度错误码映射）。
+- [ ] download state to quota confirm/release mapping（下载状态到额度 confirm/release 的映射）。
 
-### Integration Tests
+### Integration Tests（集成测试）
 
-- [ ] activate seeded license.
-- [ ] refresh valid token.
-- [ ] deactivate device.
-- [ ] activate 4th device with idle device replacement.
-- [ ] activate 4th device with transfer code.
-- [ ] free quota 10 successful downloads then reject.
-- [ ] server unavailable with unexpired token.
-- [ ] server unavailable with expired token and grace used.
+- [ ] activate seeded license（激活手动 seed 的 license）。
+- [ ] refresh valid token（刷新有效 token）。
+- [ ] deactivate device（撤销设备激活）。
+- [ ] activate 4th device with idle device replacement（第 4 台设备通过闲置设备替换激活）。
+- [ ] activate 4th device with transfer code（第 4 台设备通过邮箱验证码激活）。
+- [ ] free quota 10 successful downloads then reject（免费额度成功下载 10 次后拒绝第 11 次）。
+- [ ] server unavailable with unexpired token（服务端不可用但 token 未过期）。
+- [ ] server unavailable with expired token and grace used（服务端不可用且 token 过期，使用 emergency grace）。
 
-### Manual QA
+### Manual QA（手工验收）
 
-- [ ] First launch creates stable device id.
-- [ ] First launch without quota cache and without server rejects free download with a clear message.
-- [ ] Reinstall or delete `$APP_DATA` does not change secure-storage id.
-- [ ] Keychain/Credential Manager unavailable fallback is visible in logs/status.
-- [ ] Purchase button opens Checkout.
-- [ ] Stripe success page and cancel page are readable.
-- [ ] License email content is readable.
-- [ ] Settings Pro panel states are clear.
-- [ ] Download page quota display updates after success/cancel/failure.
-- [ ] Privacy/support links open correctly.
+- [ ] First launch creates stable device id（首次启动创建稳定的设备 ID）。
+- [ ] First launch without quota cache and without server rejects free download with a clear message（首次启动没有额度缓存且服务端不可用时，拒绝免费下载并显示清晰提示）。
+- [ ] Reinstall or delete `$APP_DATA` does not change secure-storage id（重装或删除 `$APP_DATA` 不改变系统安全存储里的 ID）。
+- [ ] Keychain/Credential Manager unavailable fallback is visible in logs/status（Keychain/Credential Manager 不可用时，fallback 状态能在日志或状态里看到）。
+- [ ] Purchase button opens Checkout（购买按钮能打开 Stripe Checkout）。
+- [ ] Stripe success page and cancel page are readable（Stripe 成功页和取消页可读）。
+- [ ] License email content is readable（license 邮件内容可读）。
+- [ ] Settings Pro panel states are clear（设置页 Pro 面板状态清晰）。
+- [ ] Download page quota display updates after success/cancel/failure（下载成功、取消、失败后，下载页额度显示正确更新）。
+- [ ] Privacy/support links open correctly（隐私政策和支持入口能正确打开）。
 
-## 8. Rollout Checklist
+## 8. Rollout Checklist（上线检查清单）
 
-- [x] `Pro_sub_plan.md` committed to client `pro-dev`.
-- [x] Server repository initialized with TypeScript/Fastify/Prisma.
-- [x] API contract committed in both repos or linked from server docs.
-- [ ] Stripe test product and price created.
-- [ ] Stripe Price lookup key `ytbdown_pro_lifetime_current` configured.
-- [ ] Stripe test webhook configured.
-- [ ] Email provider test sender verified.
-- [ ] `ytbdown@litotime.com` send domain and receive forwarding verified.
-- [ ] Minimal privacy/terms pages published or hosted by License Server.
-- [ ] Staging License Server deployed.
-- [ ] Client staging build points to staging server.
-- [ ] End-to-end test purchase succeeds.
-- [ ] Refund path tested.
-- [ ] Device migration path tested.
-- [ ] Free quota path tested.
-- [ ] Production keys generated.
-- [ ] Production server deployed.
-- [ ] Client production public key embedded.
-- [ ] Release build tested on macOS and Windows.
+- [x] `Pro_sub_plan.md` committed to client `pro-dev`（开发计划已提交到客户端 `pro-dev` 分支）。
+- [x] Server repository initialized with TypeScript/Fastify/Prisma（服务端仓库已用 TypeScript/Fastify/Prisma 初始化）。
+- [x] API contract committed in both repos or linked from server docs（接口契约已提交，或从客户端计划链接到服务端文档）。
+- [ ] Stripe test product and price created（已创建 Stripe 测试商品和价格）。
+- [ ] Stripe Price lookup key `ytbdown_pro_lifetime_current` configured（已配置 Stripe Price lookup key）。
+- [ ] Stripe test webhook configured（已配置 Stripe 测试 webhook）。
+- [ ] Email provider test sender verified（邮件服务测试发件人已验证）。
+- [ ] `ytbdown@litotime.com` send domain and receive forwarding verified（`ytbdown@litotime.com` 发信域名和收信转发已验证）。
+- [ ] Minimal privacy/terms pages published or hosted by License Server（最小隐私政策和服务条款页面已发布，或由 License Server 托管）。
+- [ ] Staging License Server deployed（staging 授权服务端已部署）。
+- [ ] Client staging build points to staging server（客户端 staging 构建指向 staging 服务端）。
+- [ ] End-to-end test purchase succeeds（端到端测试购买成功）。
+- [ ] Refund path tested（退款路径已验证）。
+- [ ] Device migration path tested（设备迁移路径已验证）。
+- [ ] Free quota path tested（免费额度路径已验证）。
+- [ ] Production keys generated（生产密钥已生成）。
+- [ ] Production server deployed（生产服务端已部署）。
+- [ ] Client production public key embedded（客户端已内置生产环境验签公钥）。
+- [ ] Release build tested on macOS and Windows（macOS 和 Windows 正式构建已测试）。
 
 ## 9. Implementation Order
 
