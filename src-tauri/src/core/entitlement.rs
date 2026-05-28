@@ -12,6 +12,7 @@ const DEVICE_ID_KEY: &str = "device_id";
 const INSTALLATION_ID_KEY: &str = "installation_id";
 const TOKEN_ISSUER: &str = "ytbdown-license-server";
 const TOKEN_AUDIENCE: &str = "ytbdown-client";
+const EMERGENCY_GRACE_SECONDS: u64 = 24 * 60 * 60;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EntitlementFile {
@@ -84,6 +85,14 @@ pub enum ActivateProResult {
     },
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct TransferCodeStatus {
+    pub sent: bool,
+    pub email_hint: String,
+    pub expires_at: String,
+    pub dev_code: Option<String>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 struct EntitlementClaims {
     license_id: String,
@@ -134,6 +143,33 @@ struct DeactivateRequest<'a> {
     device_id: &'a str,
 }
 
+#[derive(Debug, Serialize)]
+struct TransferCodeRequest<'a> {
+    license_key: &'a str,
+    device_id: &'a str,
+    device_name: &'a str,
+    platform: &'a str,
+    app_version: &'a str,
+}
+
+#[derive(Debug, Serialize)]
+struct ActivateWithTransferCodeRequest<'a> {
+    license_key: &'a str,
+    transfer_code: &'a str,
+    device_id: &'a str,
+    device_name: &'a str,
+    platform: &'a str,
+    app_version: &'a str,
+}
+
+#[derive(Debug, Deserialize)]
+struct ServerTransferCodeResponse {
+    sent: bool,
+    email_hint: String,
+    expires_at: String,
+    dev_code: Option<String>,
+}
+
 pub struct EntitlementStore {
     path: PathBuf,
     state: Mutex<EntitlementFile>,
@@ -178,15 +214,23 @@ impl EntitlementStore {
         let mut state = self.state.lock().unwrap();
         let device = self.ensure_identity(&mut state, DEVICE_ID_KEY)?;
         let installation = self.ensure_identity(&mut state, INSTALLATION_ID_KEY)?;
-        let validation = validate_token_for_device(
+        let evaluation = evaluate_token_for_device(
             state.signed_token.as_deref(),
             &device.id,
             &self.public_key,
+            state.emergency_grace_used_for_token.as_deref(),
         );
-        let pro_active = validation.as_ref().map(|claims| claims.plan == "pro").unwrap_or(false);
-        let token_validation_error = validation.err();
+        let pro_active = evaluation
+            .claims
+            .as_ref()
+            .map(|claims| claims.plan == "pro")
+            .unwrap_or(false);
         let status = EntitlementStatus {
-            plan: if pro_active { "pro".into() } else { "free".into() },
+            plan: if pro_active {
+                "pro".into()
+            } else {
+                "free".into()
+            },
             pro_active,
             device_id: device.id,
             installation_id: installation.id,
@@ -199,7 +243,7 @@ impl EntitlementStore {
             trial_used_count_cache: state.trial_used_count_cache,
             trial_remaining_count_cache: state.trial_remaining_count_cache,
             emergency_grace_used_for_token: state.emergency_grace_used_for_token.clone(),
-            token_validation_error,
+            token_validation_error: evaluation.error,
         };
         self.persist(&state)?;
         Ok(status)
@@ -258,18 +302,31 @@ impl EntitlementStore {
             device_id: &device_id,
             app_version: &app_version,
         };
-        let status = self
+        let refresh_result = match self
             .client()?
             .post(self.endpoint("/v1/licenses/refresh"))
             .json(&request)
             .send()
             .await
-            .map_err(http_error)?
-            .error_for_status()
-            .map_err(status_error)?
-            .json::<ServerLicenseStatus>()
-            .await
-            .map_err(http_error)?;
+        {
+            Ok(response) => response
+                .error_for_status()
+                .map_err(status_error)?
+                .json::<ServerLicenseStatus>()
+                .await
+                .map_err(http_error),
+            Err(error) => Err(http_error(error)),
+        };
+        let status = match refresh_result {
+            Ok(status) => status,
+            Err(error) => {
+                self.try_emergency_grace(&device_id, &token)?;
+                if self.get_status()?.pro_active {
+                    return self.get_status();
+                }
+                return Err(error);
+            }
+        };
         self.apply_server_status(status, &device_id)?;
         self.get_status()
     }
@@ -306,11 +363,74 @@ impl EntitlementStore {
         self.get_status()
     }
 
-    fn ensure_identity(
+    pub async fn send_transfer_code(&self, license_key: String) -> AppResult<TransferCodeStatus> {
+        let (device_id, device_name, platform, app_version) = self.device_context()?;
+        let request = TransferCodeRequest {
+            license_key: license_key.trim(),
+            device_id: &device_id,
+            device_name: &device_name,
+            platform: &platform,
+            app_version: &app_version,
+        };
+        let response = self
+            .client()?
+            .post(self.endpoint("/v1/licenses/send-transfer-code"))
+            .json(&request)
+            .send()
+            .await
+            .map_err(http_error)?
+            .error_for_status()
+            .map_err(status_error)?
+            .json::<ServerTransferCodeResponse>()
+            .await
+            .map_err(http_error)?;
+        Ok(TransferCodeStatus {
+            sent: response.sent,
+            email_hint: response.email_hint,
+            expires_at: response.expires_at,
+            dev_code: response.dev_code,
+        })
+    }
+
+    pub async fn activate_with_transfer_code(
         &self,
-        state: &mut EntitlementFile,
-        key: &str,
-    ) -> AppResult<IdentityValue> {
+        license_key: String,
+        transfer_code: String,
+    ) -> AppResult<EntitlementStatus> {
+        let (device_id, device_name, platform, app_version) = self.device_context()?;
+        let request = ActivateWithTransferCodeRequest {
+            license_key: license_key.trim(),
+            transfer_code: transfer_code.trim(),
+            device_id: &device_id,
+            device_name: &device_name,
+            platform: &platform,
+            app_version: &app_version,
+        };
+        let response = self
+            .client()?
+            .post(self.endpoint("/v1/licenses/activate-with-transfer-code"))
+            .json(&request)
+            .send()
+            .await
+            .map_err(http_error)?
+            .error_for_status()
+            .map_err(status_error)?
+            .json::<ServerActivateResponse>()
+            .await
+            .map_err(http_error)?;
+
+        match response {
+            ServerActivateResponse::Activated { status } => {
+                self.apply_server_status(status, &device_id)?;
+                self.get_status()
+            }
+            ServerActivateResponse::TransferCodeRequired { .. } => {
+                Err(AppError::Other("Transfer code is still required".into()))
+            }
+        }
+    }
+
+    fn ensure_identity(&self, state: &mut EntitlementFile, key: &str) -> AppResult<IdentityValue> {
         if let Ok(Some(id)) = read_keyring(key) {
             match key {
                 DEVICE_ID_KEY => state.device_id_fallback = Some(id.clone()),
@@ -323,7 +443,11 @@ impl EntitlementStore {
         let fallback = match key {
             DEVICE_ID_KEY => &mut state.device_id_fallback,
             INSTALLATION_ID_KEY => &mut state.installation_id_fallback,
-            _ => return Err(AppError::Other(format!("unknown entitlement identity key: {key}"))),
+            _ => {
+                return Err(AppError::Other(format!(
+                    "unknown entitlement identity key: {key}"
+                )))
+            }
         };
 
         let id = fallback
@@ -343,9 +467,8 @@ impl EntitlementStore {
     }
 
     fn apply_server_status(&self, status: ServerLicenseStatus, device_id: &str) -> AppResult<()> {
-        let claims =
-            validate_token_for_device(Some(&status.token), device_id, &self.public_key)
-                .map_err(AppError::Other)?;
+        let claims = validate_token_for_device(&status.token, device_id, &self.public_key, true)
+            .map_err(AppError::Other)?;
         if claims.license_id.trim().is_empty() {
             return Err(AppError::Other("Token license id is missing".into()));
         }
@@ -355,7 +478,22 @@ impl EntitlementStore {
         state.license_key_last4 = Some(status.license_key_last4);
         state.signed_token = Some(status.token);
         state.token_expires_at = Some(status.token_expires_at);
+        state.emergency_grace_used_for_token = None;
         self.persist(&state)
+    }
+
+    fn try_emergency_grace(&self, device_id: &str, token: &str) -> AppResult<()> {
+        let claims = validate_token_for_device(token, device_id, &self.public_key, false)
+            .map_err(AppError::Other)?;
+        if claims.exp > now_seconds() || claims.exp + EMERGENCY_GRACE_SECONDS <= now_seconds() {
+            return Ok(());
+        }
+        let mut state = self.state.lock().unwrap();
+        if state.emergency_grace_used_for_token.as_deref() != Some(token) {
+            state.emergency_grace_used_for_token = Some(token.to_string());
+            self.persist(&state)?;
+        }
+        Ok(())
     }
 
     fn device_context(&self) -> AppResult<(String, String, String, String)> {
@@ -400,12 +538,51 @@ fn write_keyring(key: &str, value: &str) -> Result<(), keyring::Error> {
     entry.set_password(value)
 }
 
-fn validate_token_for_device(
+struct TokenEvaluation {
+    claims: Option<EntitlementClaims>,
+    error: Option<String>,
+}
+
+fn evaluate_token_for_device(
     token: Option<&str>,
     device_id: &str,
     public_key: &str,
+    emergency_grace_used_for_token: Option<&str>,
+) -> TokenEvaluation {
+    let Some(token) = token else {
+        return TokenEvaluation {
+            claims: None,
+            error: Some("token_missing".into()),
+        };
+    };
+    if emergency_grace_used_for_token == Some(token) {
+        if let Ok(claims) = validate_token_for_device(token, device_id, public_key, false) {
+            if claims.exp <= now_seconds() && claims.exp + EMERGENCY_GRACE_SECONDS > now_seconds() {
+                return TokenEvaluation {
+                    claims: Some(claims),
+                    error: Some("emergency_grace_active".into()),
+                };
+            }
+        }
+    }
+    match validate_token_for_device(token, device_id, public_key, true) {
+        Ok(claims) => TokenEvaluation {
+            claims: Some(claims),
+            error: None,
+        },
+        Err(error) => TokenEvaluation {
+            claims: None,
+            error: Some(error),
+        },
+    }
+}
+
+fn validate_token_for_device(
+    token: &str,
+    device_id: &str,
+    public_key: &str,
+    validate_exp: bool,
 ) -> Result<EntitlementClaims, String> {
-    let token = token.ok_or_else(|| "token_missing".to_string())?;
     if public_key.trim().is_empty() {
         return Err("public_key_missing".into());
     }
@@ -414,12 +591,13 @@ fn validate_token_for_device(
     let mut validation = Validation::new(Algorithm::EdDSA);
     validation.set_issuer(&[TOKEN_ISSUER]);
     validation.set_audience(&[TOKEN_AUDIENCE]);
+    validation.validate_exp = validate_exp;
     let data = decode::<EntitlementClaims>(token, &key, &validation)
         .map_err(|e| format!("token_invalid: {e}"))?;
     if data.claims.device_id != device_id {
         return Err("token_device_mismatch".into());
     }
-    if data.claims.exp <= now_seconds() {
+    if validate_exp && data.claims.exp <= now_seconds() {
         return Err("token_expired".into());
     }
     Ok(data.claims)
@@ -522,12 +700,9 @@ mod tests {
     #[test]
     fn valid_signed_token_returns_pro_status() {
         let temp = tempfile::tempdir().unwrap();
-        let store = EntitlementStore::load_with_config(
-            temp.path(),
-            TEST_PUBLIC_KEY,
-            "http://127.0.0.1:9",
-        )
-        .unwrap();
+        let store =
+            EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, "http://127.0.0.1:9")
+                .unwrap();
         let device_id = store.get_status().unwrap().device_id;
         let token = test_token(&device_id, now_seconds() + 3600);
 
@@ -553,12 +728,9 @@ mod tests {
     #[test]
     fn expired_signed_token_returns_free_status() {
         let temp = tempfile::tempdir().unwrap();
-        let store = EntitlementStore::load_with_config(
-            temp.path(),
-            TEST_PUBLIC_KEY,
-            "http://127.0.0.1:9",
-        )
-        .unwrap();
+        let store =
+            EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, "http://127.0.0.1:9")
+                .unwrap();
         let mut state = store.state.lock().unwrap();
         let device_id = "ytb_test_device";
         state.device_id_fallback = Some(device_id.into());
@@ -593,7 +765,10 @@ mod tests {
         clear_pro_state(&mut state);
 
         assert_eq!(state.device_id_fallback.as_deref(), Some("ytb_device"));
-        assert_eq!(state.installation_id_fallback.as_deref(), Some("ytb_installation"));
+        assert_eq!(
+            state.installation_id_fallback.as_deref(),
+            Some("ytb_installation")
+        );
         assert!(state.license_id.is_none());
         assert!(state.signed_token.is_none());
         assert_eq!(state.trial_remaining_count_cache, Some(9));
@@ -602,12 +777,9 @@ mod tests {
     #[tokio::test]
     async fn activate_pro_saves_server_token() {
         let temp = tempfile::tempdir().unwrap();
-        let initial_store = EntitlementStore::load_with_config(
-            temp.path(),
-            TEST_PUBLIC_KEY,
-            "http://127.0.0.1:9",
-        )
-        .unwrap();
+        let initial_store =
+            EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, "http://127.0.0.1:9")
+                .unwrap();
         let device_id = initial_store.get_status().unwrap().device_id;
         drop(initial_store);
 
@@ -627,10 +799,13 @@ mod tests {
               }}
             }}"#
         ));
-        let store = EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, &server.url)
-            .unwrap();
+        let store =
+            EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, &server.url).unwrap();
 
-        let result = store.activate_pro("YTB-AAAA-BBBB-CCCC-DDDD".into()).await.unwrap();
+        let result = store
+            .activate_pro("YTB-AAAA-BBBB-CCCC-DDDD".into())
+            .await
+            .unwrap();
 
         match result {
             ActivateProResult::Activated { status } => {
@@ -652,10 +827,13 @@ mod tests {
             }"#
             .into(),
         );
-        let store = EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, &server.url)
-            .unwrap();
+        let store =
+            EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, &server.url).unwrap();
 
-        let result = store.activate_pro("YTB-AAAA-BBBB-CCCC-DDDD".into()).await.unwrap();
+        let result = store
+            .activate_pro("YTB-AAAA-BBBB-CCCC-DDDD".into())
+            .await
+            .unwrap();
 
         match result {
             ActivateProResult::TransferCodeRequired {
@@ -672,12 +850,9 @@ mod tests {
     #[tokio::test]
     async fn refresh_pro_updates_stored_token() {
         let temp = tempfile::tempdir().unwrap();
-        let mut store = EntitlementStore::load_with_config(
-            temp.path(),
-            TEST_PUBLIC_KEY,
-            "http://127.0.0.1:9",
-        )
-        .unwrap();
+        let mut store =
+            EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, "http://127.0.0.1:9")
+                .unwrap();
         let device_id = store.get_status().unwrap().device_id;
         store
             .apply_server_status(
@@ -711,6 +886,97 @@ mod tests {
         assert!(status.pro_active);
         assert_eq!(status.license_key_last4.as_deref(), Some("WXYZ"));
         assert_eq!(status.signed_token.as_deref(), Some(refreshed.as_str()));
+    }
+
+    #[tokio::test]
+    async fn refresh_failure_enables_one_day_emergency_grace_for_expired_token() {
+        let temp = tempfile::tempdir().unwrap();
+        let store =
+            EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, "http://127.0.0.1:9")
+                .unwrap();
+        let device_id = store.get_status().unwrap().device_id;
+        let expired = test_token(&device_id, now_seconds() - 60);
+        {
+            let mut state = store.state.lock().unwrap();
+            state.license_id = Some("lic_test".into());
+            state.license_email = Some("buyer@example.com".into());
+            state.license_key_last4 = Some("ABCD".into());
+            state.signed_token = Some(expired.clone());
+            state.token_expires_at = Some("2000-01-01T00:00:00.000Z".into());
+        }
+
+        let status = store.refresh_pro().await.unwrap();
+
+        assert!(status.pro_active);
+        assert_eq!(
+            status.token_validation_error.as_deref(),
+            Some("emergency_grace_active")
+        );
+        assert_eq!(
+            status.emergency_grace_used_for_token.as_deref(),
+            Some(expired.as_str())
+        );
+    }
+
+    #[tokio::test]
+    async fn send_transfer_code_returns_email_hint() {
+        let temp = tempfile::tempdir().unwrap();
+        let server = mock_json_server(
+            r#"{
+              "sent":true,
+              "email_hint":"bu***@example.com",
+              "expires_at":"2099-01-01T00:00:00.000Z",
+              "dev_code":"123456"
+            }"#
+            .into(),
+        );
+        let store =
+            EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, &server.url).unwrap();
+
+        let result = store
+            .send_transfer_code("YTB-AAAA-BBBB-CCCC-DDDD".into())
+            .await
+            .unwrap();
+
+        assert!(result.sent);
+        assert_eq!(result.email_hint, "bu***@example.com");
+        assert_eq!(result.dev_code.as_deref(), Some("123456"));
+    }
+
+    #[tokio::test]
+    async fn activate_with_transfer_code_saves_server_token() {
+        let temp = tempfile::tempdir().unwrap();
+        let initial_store =
+            EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, "http://127.0.0.1:9")
+                .unwrap();
+        let device_id = initial_store.get_status().unwrap().device_id;
+        drop(initial_store);
+        let token = test_token(&device_id, now_seconds() + 3600);
+        let server = mock_json_server(format!(
+            r#"{{
+              "kind":"activated",
+              "status":{{
+                "status":"active",
+                "plan":"pro",
+                "activation_limit":3,
+                "active_device_count":1,
+                "token":"{token}",
+                "token_expires_at":"2099-01-01T00:00:00.000Z",
+                "license_email":"buyer@example.com",
+                "license_key_last4":"ABCD"
+              }}
+            }}"#
+        ));
+        let store =
+            EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, &server.url).unwrap();
+
+        let status = store
+            .activate_with_transfer_code("YTB-AAAA-BBBB-CCCC-DDDD".into(), "123456".into())
+            .await
+            .unwrap();
+
+        assert!(status.pro_active);
+        assert_eq!(status.license_email.as_deref(), Some("buyer@example.com"));
     }
 
     fn test_token(device_id: &str, exp: u64) -> String {

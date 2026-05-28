@@ -337,8 +337,8 @@ IPC：
 - [x] `activate_pro`
 - [x] `refresh_pro`
 - [x] `deactivate_pro`
-- [ ] `send_transfer_code`
-- [ ] `activate_with_transfer_code`
+- [x] `send_transfer_code`
+- [x] `activate_with_transfer_code`
 
 验收：
 
@@ -347,7 +347,7 @@ IPC：
 - [x] 系统安全存储不可用时 fallback 到 `$APP_DATA`，并记录 `secure_storage_available=false`。
 - [x] 有效 signed token 本地验签通过时显示 Pro。
 - [x] token 未过期但服务端不可用时，Pro 仍可用。
-- [ ] token 过期后触发 refresh 或 emergency grace。
+- [x] token 过期后触发 refresh 或 emergency grace。
 
 ### Milestone 5: Client Download Enforcement（客户端下载限制强制执行）
 

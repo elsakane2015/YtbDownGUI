@@ -95,6 +95,8 @@ pub fn run() {
             commands::entitlement::activate_pro,
             commands::entitlement::refresh_pro,
             commands::entitlement::deactivate_pro,
+            commands::entitlement::send_transfer_code,
+            commands::entitlement::activate_with_transfer_code,
             commands::settings::get_settings,
             commands::settings::update_settings,
             commands::system::open_path,

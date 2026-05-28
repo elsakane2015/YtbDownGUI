@@ -184,6 +184,13 @@ export type ActivateProResult =
       active_device_count: number;
     };
 
+export type TransferCodeStatus = {
+  sent: boolean;
+  email_hint: string;
+  expires_at: string;
+  dev_code: string | null;
+};
+
 // ---- IPC wrappers ----
 
 export const probeToolVersions = () =>
@@ -233,6 +240,18 @@ export const activatePro = (licenseKey: string) =>
 export const refreshPro = () => invoke<EntitlementStatus>("refresh_pro");
 
 export const deactivatePro = () => invoke<EntitlementStatus>("deactivate_pro");
+
+export const sendTransferCode = (licenseKey: string) =>
+  invoke<TransferCodeStatus>("send_transfer_code", { licenseKey });
+
+export const activateWithTransferCode = (
+  licenseKey: string,
+  transferCode: string,
+) =>
+  invoke<EntitlementStatus>("activate_with_transfer_code", {
+    licenseKey,
+    transferCode,
+  });
 
 // ---- settings ----
 
