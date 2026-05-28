@@ -1,6 +1,6 @@
 //! IPC commands for Pro/free entitlement state.
 
-use crate::core::entitlement::{EntitlementStatus, EntitlementStore};
+use crate::core::entitlement::{ActivateProResult, EntitlementStatus, EntitlementStore};
 use crate::error::AppResult;
 use tauri::State;
 
@@ -9,4 +9,22 @@ pub fn get_entitlement_status(
     store: State<'_, EntitlementStore>,
 ) -> AppResult<EntitlementStatus> {
     store.get_status()
+}
+
+#[tauri::command]
+pub async fn activate_pro(
+    store: State<'_, EntitlementStore>,
+    license_key: String,
+) -> AppResult<ActivateProResult> {
+    store.activate_pro(license_key).await
+}
+
+#[tauri::command]
+pub async fn refresh_pro(store: State<'_, EntitlementStore>) -> AppResult<EntitlementStatus> {
+    store.refresh_pro().await
+}
+
+#[tauri::command]
+pub async fn deactivate_pro(store: State<'_, EntitlementStore>) -> AppResult<EntitlementStatus> {
+    store.deactivate_pro().await
 }

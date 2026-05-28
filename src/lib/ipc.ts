@@ -173,7 +173,16 @@ export type EntitlementStatus = {
   trial_used_count_cache: number | null;
   trial_remaining_count_cache: number | null;
   emergency_grace_used_for_token: string | null;
+  token_validation_error: string | null;
 };
+
+export type ActivateProResult =
+  | { kind: "activated"; status: EntitlementStatus }
+  | {
+      kind: "transfer_code_required";
+      email_hint: string;
+      active_device_count: number;
+    };
 
 // ---- IPC wrappers ----
 
@@ -217,6 +226,13 @@ export const defaultDownloadDir = () => invoke<string>("default_download_dir");
 
 export const getEntitlementStatus = () =>
   invoke<EntitlementStatus>("get_entitlement_status");
+
+export const activatePro = (licenseKey: string) =>
+  invoke<ActivateProResult>("activate_pro", { licenseKey });
+
+export const refreshPro = () => invoke<EntitlementStatus>("refresh_pro");
+
+export const deactivatePro = () => invoke<EntitlementStatus>("deactivate_pro");
 
 // ---- settings ----
 
