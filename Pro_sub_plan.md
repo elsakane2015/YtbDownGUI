@@ -399,27 +399,27 @@ IPC：
 
 `src/pages/SettingsPage.tsx`：
 
-- [ ] 增加 Pro 区域。
-- [ ] 显示当前 plan、license email、设备数、token 到期时间。
-- [ ] 输入 license key 激活。
-- [ ] 退出激活。
-- [ ] 激活返回需要验证码时，显示验证码输入框。
-- [ ] 购买 Pro 按钮打开 Checkout URL。
-- [ ] 找回激活码入口，调用 resend API。
+- [x] 增加 Pro 区域。
+- [x] 显示当前 plan、license email、当前设备激活状态、token 到期时间。
+- [x] 输入 license key 激活。
+- [x] 退出激活。
+- [x] 激活返回需要验证码时，显示验证码输入框。
+- [x] 购买 Pro 按钮打开 Checkout URL。
+- [x] 找回激活码入口，调用 resend API。
 
 `src/pages/DownloadsPage.tsx`：
 
-- [ ] 显示免费额度：`已用 X / 10` 或 `剩余 X / 10`。
-- [ ] Pro 用户显示 `Pro 已激活`。
-- [ ] 批量选择超过免费额度时提前提示。
-- [ ] 后端错误 `quota_exceeded` 显示明确升级提示。
+- [x] 显示免费额度：`已用 X / 10` 或 `剩余 X / 10`。
+- [x] Pro 用户显示 `Pro 已激活`。
+- [x] 批量选择超过免费额度时提前提示。
+- [x] 后端错误 `quota_exceeded` 显示明确升级提示。
 
 验收：
 
-- [ ] 免费用户能看到剩余额度。
-- [ ] Pro 用户不再显示限制焦虑信息，只显示已激活状态。
-- [ ] 激活失败原因能区分：无效 key、设备满且需要验证码、验证码错误、网络失败、license 被禁用。
-- [ ] 服务端不可用时 UI 能说明当前离线授权剩余时间。
+- [x] 免费用户能看到剩余额度。
+- [x] Pro 用户不再显示限制焦虑信息，只显示已激活状态。
+- [x] 激活失败原因能区分：无效 key、设备满且需要验证码、验证码错误、网络失败、license 被禁用。
+- [x] 服务端不可用时 UI 能说明当前离线授权状态。
 
 ### Milestone 7: End-to-End Integration（端到端联调）
 

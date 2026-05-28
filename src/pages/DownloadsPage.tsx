@@ -6,6 +6,7 @@ import {
   defaultDownloadDir,
   enqueueBatch,
   enqueueDownload,
+  getEntitlementStatus,
   getSettings,
   listJobs,
   onDownloadProgress,
@@ -16,7 +17,9 @@ import {
   pickFolder,
   probe,
   revealInFinder,
+  syncFreeQuotaStatus,
   type DownloadJob,
+  type EntitlementStatus,
   type FormatSelection,
   type PlaylistEntry,
   type ProbeResult,
@@ -65,6 +68,7 @@ export default function DownloadsPage() {
 
   // jobs
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
+  const [entitlement, setEntitlement] = useState<EntitlementStatus | null>(null);
 
   // user settings (download dir, default quality, etc.) — drive defaults.
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -73,6 +77,10 @@ export default function DownloadsPage() {
     defaultDownloadDir().then(setOutputDir).catch(() => {});
     listJobs().then(setJobs).catch(() => {});
     getSettings().then(setSettings).catch(() => {});
+    getEntitlementStatus().then(setEntitlement).catch(() => {});
+    syncFreeQuotaStatus()
+      .then(() => getEntitlementStatus().then(setEntitlement))
+      .catch(() => {});
     const unSettings = onSettingsUpdated((s) => {
       setSettings(s);
       // Live-update download dir to the new default if user hasn't overridden
@@ -89,6 +97,9 @@ export default function DownloadsPage() {
         copy[idx] = job;
         return copy;
       });
+      if (job.quota_reservation_settled) {
+        getEntitlementStatus().then(setEntitlement).catch(() => {});
+      }
     });
     const unProg = onDownloadProgress(({ id, progress }) => {
       setJobs((prev) =>
@@ -215,9 +226,10 @@ export default function DownloadsPage() {
         expected_total_bytes: expectedTotal,
         video_id_hint: video.id || null,
       });
+      getEntitlementStatus().then(setEntitlement).catch(() => {});
       setProbeMsg("已加入下载队列");
     } catch (e) {
-      setProbeMsg(`入队失败：${e}`);
+      setProbeMsg(formatDownloadError(e));
     }
   };
 
@@ -229,6 +241,8 @@ export default function DownloadsPage() {
           粘贴 YouTube / Bilibili 视频 URL，分析后选择画质与字幕。
         </p>
       </header>
+
+      <QuotaBanner entitlement={entitlement} />
 
       <div className="urlbar">
         <input
@@ -343,6 +357,8 @@ export default function DownloadsPage() {
           setOutputDir={setOutputDir}
           onMessage={setProbeMsg}
           settings={settings}
+          entitlement={entitlement}
+          onEntitlementChange={setEntitlement}
         />
       )}
 
@@ -357,6 +373,36 @@ export default function DownloadsPage() {
   );
 }
 
+function QuotaBanner({ entitlement }: { entitlement: EntitlementStatus | null }) {
+  if (!entitlement) {
+    return <div className="quota-banner muted small">授权状态加载中…</div>;
+  }
+  if (entitlement.pro_active) {
+    return (
+      <div className="quota-banner pro">
+        <strong>Pro 已激活</strong>
+        <span className="muted small">
+          {entitlement.license_email ?? "当前设备可无限下载"}
+        </span>
+      </div>
+    );
+  }
+  const used = entitlement.trial_used_count_cache;
+  const remaining = entitlement.trial_remaining_count_cache;
+  return (
+    <div className="quota-banner">
+      <strong>
+        {remaining == null ? "免费额度需要联网同步" : `免费额度剩余 ${remaining} / 10`}
+      </strong>
+      <span className="muted small">
+        {used == null
+          ? "首次免费下载前需要连接授权服务。"
+          : `已用 ${used} / 10，激活 Pro 后解除下载次数限制。`}
+      </span>
+    </div>
+  );
+}
+
 // ---- PlaylistPanel ----
 
 function PlaylistPanel({
@@ -365,12 +411,16 @@ function PlaylistPanel({
   setOutputDir,
   onMessage,
   settings,
+  entitlement,
+  onEntitlementChange,
 }: {
   playlist: PlaylistProbe;
   outputDir: string;
   setOutputDir: (s: string) => void;
   onMessage: (s: string) => void;
   settings: Settings | null;
+  entitlement: EntitlementStatus | null;
+  onEntitlementChange: (status: EntitlementStatus) => void;
 }) {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [keyword, setKeyword] = useState("");
@@ -470,6 +520,11 @@ function PlaylistPanel({
       onMessage("请先勾选至少一个视频");
       return;
     }
+    const remaining = entitlement?.trial_remaining_count_cache;
+    if (!entitlement?.pro_active && remaining != null && checked.size > remaining) {
+      onMessage(`免费版剩余 ${remaining} 次，本次选择 ${checked.size} 个；激活 Pro 后可解除限制。`);
+      return;
+    }
     const selectionForEstimate: FormatSelection =
       batchMode === "video_audio"
         ? {
@@ -528,9 +583,10 @@ function PlaylistPanel({
         subtitles: subs,
         output_dir: outputDir || null,
       });
+      getEntitlementStatus().then(onEntitlementChange).catch(() => {});
       onMessage(`已加入下载队列：${res.job_ids.length} 个任务 (批次 ${res.batch_id.slice(0, 8)})`);
     } catch (e) {
-      onMessage(`批量入队失败：${e}`);
+      onMessage(formatDownloadError(e));
     }
   };
 
@@ -1493,3 +1549,28 @@ function fmtDuration(s: number): string {
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
+function formatDownloadError(error: unknown) {
+  const raw = String(error);
+  const jsonStart = raw.indexOf("{");
+  if (jsonStart >= 0) {
+    try {
+      const parsed = JSON.parse(raw.slice(jsonStart)) as {
+        code?: string;
+        message?: string;
+      };
+      if (parsed.code === "quota_exceeded") {
+        return "免费版最多可下载 10 个视频，激活 Pro 后可解除限制。";
+      }
+      if (parsed.message) return parsed.message;
+    } catch {
+      // Fall through to plain text.
+    }
+  }
+  if (raw.includes("quota_exceeded")) {
+    return "免费版最多可下载 10 个视频，激活 Pro 后可解除限制。";
+  }
+  if (raw.includes("request failed")) {
+    return "无法连接授权服务。首次免费额度同步需要联网，或激活 Pro 后继续使用。";
+  }
+  return `入队失败：${raw}`;
+}

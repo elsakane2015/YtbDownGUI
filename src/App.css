@@ -319,6 +319,25 @@ button.small {
   font-size: 13px;
 }
 
+.quota-banner {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(10, 132, 255, 0.22);
+  border-radius: 8px;
+  background: rgba(10, 132, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.quota-banner strong {
+  font-size: 13px;
+}
+.quota-banner.pro {
+  border-color: rgba(52, 199, 89, 0.28);
+  background: rgba(52, 199, 89, 0.10);
+}
+
 /* Indeterminate progress shown while probing a (possibly long) playlist URL.
    The status text is fed by stream of yt-dlp stderr "downloading webpage /
    API JSON / N items" lines so the user can see we're alive. */
@@ -610,6 +629,58 @@ button.small {
   font-size: 14px;
   font-weight: 600;
 }
+.settings-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.settings-section-head h3 {
+  margin: 0;
+}
+.pro-status-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.pro-status-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--surface-strong);
+  min-width: 0;
+}
+.pro-status-item strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mono-input {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+.pro-links {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.link-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+}
+.link-button:hover {
+  text-decoration: underline;
+}
 .settings-row {
   display: grid;
   grid-template-columns: 120px 1fr;
@@ -625,6 +696,7 @@ button.small {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 .settings-control-stack {
   flex-direction: column;
@@ -642,6 +714,9 @@ button.small {
   background: var(--surface-strong);
   outline: none;
 }
+.settings-control .dir-input {
+  min-width: 220px;
+}
 .num-input {
   width: 70px;
 }
@@ -654,6 +729,15 @@ button.small {
 }
 .checkbox-row input[type="checkbox"] {
   cursor: pointer;
+}
+
+@media (max-width: 860px) {
+  .pro-status-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .settings-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* yt-dlp update banner */

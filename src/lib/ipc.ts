@@ -193,6 +193,24 @@ export type TransferCodeStatus = {
   dev_code: string | null;
 };
 
+export type CheckoutSession = {
+  checkout_session_id: string;
+  checkout_url: string;
+};
+
+export type ResendLicenseResponse = {
+  accepted: boolean;
+  email_hint: string;
+  dev_license_key?: string | null;
+};
+
+export type SupportContact = {
+  support_email: string;
+  privacy_url: string;
+  terms_url: string;
+  support_url: string;
+};
+
 export type FreeQuotaStatus = {
   installation_id: string;
   quota_limit: number;
@@ -269,6 +287,15 @@ export const activateWithTransferCode = (
     licenseKey,
     transferCode,
   });
+
+export const createCheckoutSession = (purchaseEmail: string) =>
+  invoke<CheckoutSession>("create_checkout_session", { purchaseEmail });
+
+export const resendLicense = (purchaseEmail: string) =>
+  invoke<ResendLicenseResponse>("resend_license", { purchaseEmail });
+
+export const getSupportContact = () =>
+  invoke<SupportContact>("get_support_contact");
 
 export const syncFreeQuotaStatus = () =>
   invoke<FreeQuotaStatus>("sync_free_quota_status");

@@ -1,14 +1,25 @@
 import { useCallback, useEffect, useState } from "react";
 import { FolderIcon } from "../components/Icons";
 import {
+  activatePro,
+  activateWithTransferCode,
   appVersion,
+  createCheckoutSession,
+  deactivatePro,
   getSettings,
+  getEntitlementStatus,
+  getSupportContact,
   openPath,
   openUrl,
   pickFolder,
+  resendLicense,
+  sendTransferCode,
   updateSettings,
+  type ActivateProResult,
   type AppVersion,
+  type EntitlementStatus,
   type Settings,
+  type SupportContact,
 } from "../lib/ipc";
 
 const CODEC_OPTIONS: { value: string; label: string }[] = [
@@ -30,12 +41,24 @@ const HEIGHT_OPTIONS: { value: string; label: string }[] = [
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [version, setVersion] = useState<AppVersion | null>(null);
+  const [entitlement, setEntitlement] = useState<EntitlementStatus | null>(null);
+  const [support, setSupport] = useState<SupportContact | null>(null);
+  const [licenseKey, setLicenseKey] = useState("");
+  const [transferCode, setTransferCode] = useState("");
+  const [transferRequired, setTransferRequired] = useState<{
+    email_hint: string;
+    active_device_count: number;
+  } | null>(null);
+  const [purchaseEmail, setPurchaseEmail] = useState("");
   const [busy, setBusy] = useState(false);
+  const [proBusy, setProBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     getSettings().then(setSettings).catch((e) => setToast(String(e)));
     appVersion().then(setVersion).catch(() => {});
+    getEntitlementStatus().then(setEntitlement).catch((e) => setToast(String(e)));
+    getSupportContact().then(setSupport).catch(() => {});
   }, []);
 
   const patch = useCallback(
@@ -69,6 +92,124 @@ export default function SettingsPage() {
     [],
   );
 
+  const reloadEntitlement = useCallback(async () => {
+    const next = await getEntitlementStatus();
+    setEntitlement(next);
+    return next;
+  }, []);
+
+  const handleActivate = useCallback(async () => {
+    if (!licenseKey.trim()) {
+      setToast("请输入激活码");
+      return;
+    }
+    setProBusy(true);
+    try {
+      const result: ActivateProResult = await activatePro(licenseKey);
+      if (result.kind === "activated") {
+        setEntitlement(result.status);
+        setTransferRequired(null);
+        setTransferCode("");
+        setToast("Pro 已激活");
+      } else {
+        setTransferRequired({
+          email_hint: result.email_hint,
+          active_device_count: result.active_device_count,
+        });
+        setToast("设备名额已满，需要邮箱验证码完成换机");
+      }
+    } catch (e) {
+      setToast(formatProError(e));
+    } finally {
+      setProBusy(false);
+    }
+  }, [licenseKey]);
+
+  const handleSendTransferCode = useCallback(async () => {
+    if (!licenseKey.trim()) {
+      setToast("请输入激活码");
+      return;
+    }
+    setProBusy(true);
+    try {
+      const result = await sendTransferCode(licenseKey);
+      setTransferRequired({
+        email_hint: result.email_hint,
+        active_device_count: transferRequired?.active_device_count ?? 0,
+      });
+      setToast(`验证码已发送到 ${result.email_hint}`);
+    } catch (e) {
+      setToast(formatProError(e));
+    } finally {
+      setProBusy(false);
+    }
+  }, [licenseKey, transferRequired?.active_device_count]);
+
+  const handleActivateWithCode = useCallback(async () => {
+    if (!licenseKey.trim() || !transferCode.trim()) {
+      setToast("请输入激活码和 6 位验证码");
+      return;
+    }
+    setProBusy(true);
+    try {
+      const status = await activateWithTransferCode(licenseKey, transferCode);
+      setEntitlement(status);
+      setTransferRequired(null);
+      setTransferCode("");
+      setToast("Pro 已激活");
+    } catch (e) {
+      setToast(formatProError(e));
+    } finally {
+      setProBusy(false);
+    }
+  }, [licenseKey, transferCode]);
+
+  const handleDeactivate = useCallback(async () => {
+    setProBusy(true);
+    try {
+      const status = await deactivatePro();
+      setEntitlement(status);
+      setToast("已退出当前设备激活");
+    } catch (e) {
+      setToast(formatProError(e));
+    } finally {
+      setProBusy(false);
+    }
+  }, []);
+
+  const handlePurchase = useCallback(async () => {
+    if (!purchaseEmail.trim()) {
+      setToast("请输入接收激活码的邮箱");
+      return;
+    }
+    setProBusy(true);
+    try {
+      const session = await createCheckoutSession(purchaseEmail);
+      await openUrl(session.checkout_url);
+      setToast("已打开付款页面，激活码会发送到购买邮箱");
+    } catch (e) {
+      setToast(formatProError(e));
+    } finally {
+      setProBusy(false);
+    }
+  }, [purchaseEmail]);
+
+  const handleResend = useCallback(async () => {
+    if (!purchaseEmail.trim()) {
+      setToast("请输入购买邮箱");
+      return;
+    }
+    setProBusy(true);
+    try {
+      const result = await resendLicense(purchaseEmail);
+      setToast(`如果邮箱存在购买记录，激活码会发送到 ${result.email_hint}`);
+    } catch (e) {
+      setToast(formatProError(e));
+    } finally {
+      setProBusy(false);
+    }
+  }, [purchaseEmail]);
+
   if (!settings) {
     return (
       <div className="page">
@@ -88,6 +229,148 @@ export default function SettingsPage() {
           所有改动即时保存到 ~/Library/Application Support/com.litotime.ytbdowngui/settings.json
         </p>
       </header>
+
+      <section className="settings-card">
+        <div className="settings-section-head">
+          <h3>Pro 授权</h3>
+          <button
+            className="secondary small"
+            onClick={reloadEntitlement}
+            disabled={proBusy}
+          >
+            刷新状态
+          </button>
+        </div>
+        <div className="pro-status-grid">
+          <StatusItem
+            label="当前版本"
+            value={entitlement?.pro_active ? "Pro 已激活" : "免费版"}
+          />
+          <StatusItem
+            label="购买邮箱"
+            value={entitlement?.license_email ?? "未绑定"}
+          />
+          <StatusItem
+            label="Token 到期"
+            value={formatDateTime(entitlement?.token_expires_at)}
+          />
+          <StatusItem
+            label="设备状态"
+            value={
+              entitlement?.pro_active
+                ? `当前设备已激活 · ${shortId(entitlement.device_id)}`
+                : `未激活 · ${shortId(entitlement?.device_id)}`
+            }
+          />
+        </div>
+        {entitlement?.token_validation_error &&
+          entitlement.token_validation_error !== "token_missing" && (
+            <div className="hint">
+              {entitlement.token_validation_error === "emergency_grace_active"
+                ? "授权服务暂时不可用，当前设备正在使用离线宽限。"
+                : `本地授权不可用：${entitlement.token_validation_error}`}
+            </div>
+          )}
+        <div className="settings-row">
+          <label>激活码</label>
+          <div className="settings-control">
+            <input
+              className="dir-input mono-input"
+              value={licenseKey}
+              onChange={(e) => setLicenseKey(e.currentTarget.value)}
+              placeholder="YTB-XXXX-XXXX-XXXX-XXXX"
+            />
+            <button
+              className="primary"
+              onClick={handleActivate}
+              disabled={proBusy}
+            >
+              激活
+            </button>
+            <button
+              className="secondary"
+              onClick={handleDeactivate}
+              disabled={proBusy || !entitlement?.pro_active}
+            >
+              退出激活
+            </button>
+          </div>
+        </div>
+        {transferRequired && (
+          <div className="settings-row">
+            <label>换机验证码</label>
+            <div className="settings-control">
+              <input
+                className="num-input mono-input"
+                value={transferCode}
+                maxLength={6}
+                onChange={(e) =>
+                  setTransferCode(e.currentTarget.value.replace(/\D/g, ""))
+                }
+                placeholder="6 位"
+              />
+              <button
+                className="secondary"
+                onClick={handleSendTransferCode}
+                disabled={proBusy}
+              >
+                发送验证码
+              </button>
+              <button
+                className="primary"
+                onClick={handleActivateWithCode}
+                disabled={proBusy || transferCode.length !== 6}
+              >
+                完成换机
+              </button>
+              <span className="muted small">
+                已有 {transferRequired.active_device_count} 台设备，验证码发送到{" "}
+                {transferRequired.email_hint}
+              </span>
+            </div>
+          </div>
+        )}
+        <div className="settings-row">
+          <label>购买邮箱</label>
+          <div className="settings-control">
+            <input
+              className="dir-input"
+              value={purchaseEmail}
+              onChange={(e) => setPurchaseEmail(e.currentTarget.value)}
+              placeholder="user@example.com"
+            />
+            <button className="primary" onClick={handlePurchase} disabled={proBusy}>
+              购买 Pro
+            </button>
+            <button className="secondary" onClick={handleResend} disabled={proBusy}>
+              找回激活码
+            </button>
+          </div>
+        </div>
+        {support && (
+          <div className="pro-links">
+            <button
+              className="link-button"
+              onClick={() => openUrl(support.support_url).catch(() => {})}
+            >
+              支持
+            </button>
+            <button
+              className="link-button"
+              onClick={() => openUrl(support.privacy_url).catch(() => {})}
+            >
+              隐私政策
+            </button>
+            <button
+              className="link-button"
+              onClick={() => openUrl(support.terms_url).catch(() => {})}
+            >
+              授权条款
+            </button>
+            <span className="muted small">{support.support_email}</span>
+          </div>
+        )}
+      </section>
 
       <section className="settings-card">
         <h3>下载</h3>
@@ -284,4 +567,52 @@ export default function SettingsPage() {
       )}
     </div>
   );
+}
+
+function StatusItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="pro-status-item">
+      <span className="muted small">{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "未生成";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
+function shortId(value: string | null | undefined) {
+  if (!value) return "未知设备";
+  return value.length > 12 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value;
+}
+
+function formatProError(error: unknown) {
+  const raw = String(error);
+  const jsonStart = raw.indexOf("{");
+  if (jsonStart >= 0) {
+    try {
+      const parsed = JSON.parse(raw.slice(jsonStart)) as {
+        code?: string;
+        message?: string;
+      };
+      if (parsed.code === "license_invalid") return "激活码无效或不存在";
+      if (parsed.code === "license_disabled") return "该授权已被禁用";
+      if (parsed.code === "transfer_code_invalid") return "验证码错误或已过期";
+      if (parsed.code === "license_resend_rate_limited") {
+        return "找回邮件请求过于频繁，请稍后再试";
+      }
+      if (parsed.message) return parsed.message;
+    } catch {
+      // Fall through to plain text.
+    }
+  }
+  if (raw.includes("transfer")) return "设备名额已满，需要邮箱验证码完成换机";
+  if (raw.includes("network") || raw.includes("request failed")) {
+    return "无法连接授权服务，请检查网络后重试";
+  }
+  return raw;
 }

@@ -94,6 +94,28 @@ pub struct TransferCodeStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CheckoutSession {
+    pub checkout_session_id: String,
+    pub checkout_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResendLicenseResponse {
+    pub accepted: bool,
+    pub email_hint: String,
+    #[serde(default)]
+    pub dev_license_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SupportContact {
+    pub support_email: String,
+    pub privacy_url: String,
+    pub terms_url: String,
+    pub support_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FreeQuotaStatus {
     pub installation_id: String,
     pub quota_limit: u32,
@@ -182,6 +204,11 @@ struct ActivateWithTransferCodeRequest<'a> {
     device_name: &'a str,
     platform: &'a str,
     app_version: &'a str,
+}
+
+#[derive(Debug, Serialize)]
+struct PurchaseEmailRequest<'a> {
+    purchase_email: &'a str,
 }
 
 #[derive(Debug, Serialize)]
@@ -466,6 +493,47 @@ impl EntitlementStore {
                 Err(AppError::Other("Transfer code is still required".into()))
             }
         }
+    }
+
+    pub async fn create_checkout_session(
+        &self,
+        purchase_email: String,
+    ) -> AppResult<CheckoutSession> {
+        let request = PurchaseEmailRequest {
+            purchase_email: purchase_email.trim(),
+        };
+        let response = self
+            .client()?
+            .post(self.endpoint("/v1/billing/create-checkout-session"))
+            .json(&request)
+            .send()
+            .await
+            .map_err(http_error)?;
+        json_or_status::<CheckoutSession>(response).await
+    }
+
+    pub async fn resend_license(&self, purchase_email: String) -> AppResult<ResendLicenseResponse> {
+        let request = PurchaseEmailRequest {
+            purchase_email: purchase_email.trim(),
+        };
+        let response = self
+            .client()?
+            .post(self.endpoint("/v1/licenses/resend"))
+            .json(&request)
+            .send()
+            .await
+            .map_err(http_error)?;
+        json_or_status::<ResendLicenseResponse>(response).await
+    }
+
+    pub async fn support_contact(&self) -> AppResult<SupportContact> {
+        let response = self
+            .client()?
+            .get(self.endpoint("/v1/support/contact"))
+            .send()
+            .await
+            .map_err(http_error)?;
+        json_or_status::<SupportContact>(response).await
     }
 
     pub async fn sync_free_quota_status(&self) -> AppResult<FreeQuotaStatus> {
