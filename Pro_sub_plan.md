@@ -230,25 +230,25 @@ Stripe events（需要处理的 Stripe 事件）：
 - [x] 订单字段包含 `source`、`external_order_id`、`buyer_email`、`status`、`amount`、`currency`、`raw_payload`。
 - [x] `source + external_order_id` 必须唯一，避免重复发货。
 - [x] license 记录关联 `order_id`，并保留已有 Stripe 关联字段。
-- [ ] `source` 至少支持 `stripe`、`xianyu`、`weidian`、`woocommerce`、`manual`。
+- [x] `source` 至少支持 `stripe`、`xianyu`、`weidian`、`woocommerce`、`manual`。
 
 服务端 API：
 
 - [x] `GET /admin/manual-fulfill`：极简网页后台，输入邮箱和订单号后手动发货。
 - [x] `POST /v1/orders/manual-fulfill`：后台手动创建或确认外部订单并发 license。
 - [ ] `POST /v1/webhooks/woocommerce`：接收 WooCommerce 已付款订单 webhook。
-- [ ] `POST /v1/orders/import`：批量导入咸鱼/微店订单 CSV 或 JSON。
-- [ ] `GET /v1/orders/:id`：查询订单履约状态。
-- [ ] `POST /v1/orders/:id/resend`：重发该订单 license 邮件。
+- [x] `POST /v1/orders/import`：批量导入咸鱼/微店订单 JSON。
+- [x] `GET /v1/orders/:id`：查询订单履约状态。
+- [x] `POST /v1/orders/:id/resend`：重发该订单 license 邮件。
 
 安全要求：
 
 - [x] 后台履约接口必须有 admin token 或更强后台认证，不能公开调用。
 - [ ] WooCommerce webhook 必须校验签名或共享密钥。
-- [ ] 订单导入必须校验邮箱格式、订单号、渠道来源。
+- [x] 订单导入必须校验邮箱格式、订单号、渠道来源。
 - [x] 不在客户端保存咸鱼、微店、WordPress、WooCommerce 的任何后台凭据。
 - [x] 对手动履约订单写入 audit log。
-- [ ] 对重复订单、退款订单、异常订单写入 audit log。
+- [x] 对重复订单、退款订单、异常订单写入 audit log。
 
 发货规则：
 
@@ -262,7 +262,7 @@ Stripe events（需要处理的 Stripe 事件）：
 
 - [x] 手动录入咸鱼订单后，服务端生成 license 并发送邮件。
 - [x] 重复录入同一咸鱼订单不会重复发 license。
-- [ ] 导入微店订单后，已付款订单自动发货，未付款订单不发货。
+- [x] 导入微店订单后，已付款订单自动发货，未付款订单不发货。
 - [ ] WooCommerce 测试订单支付完成后，webhook 自动创建 license 并发邮件。
 - [ ] 外部订单 license 可在客户端正常激活。
 - [ ] 外部订单退款或人工禁用后，refresh/activate 不再返回 Pro token。
