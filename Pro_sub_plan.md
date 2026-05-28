@@ -217,24 +217,25 @@ Stripe events（需要处理的 Stripe 事件）：
 
 渠道策略：
 
-- [ ] 咸鱼：要求买家提交购买邮箱，订单确认后通过后台录入或订单导入触发发货。
-- [ ] 微店：要求买家提交购买邮箱，优先接入可用 webhook / API；没有稳定 API 时走订单导入或后台确认。
+- [x] 咸鱼：要求买家提交购买邮箱，订单确认后通过后台录入触发发货。
+- [x] 微店：要求买家提交购买邮箱；没有稳定 API 时走后台确认。
 - [ ] WordPress / WooCommerce：作为优先自动化渠道，通过 WooCommerce webhook 通知 License Server。
-- [ ] 所有渠道统一使用购买邮箱 + license key 激活，不新增账号密码体系。
-- [ ] 邮件自动发货是主路径；平台站内消息只作为辅助路径。
-- [ ] 不使用模拟登录、爬虫或不稳定浏览器自动化作为 v1 发货关键路径。
+- [x] 所有渠道统一使用购买邮箱 + license key 激活，不新增账号密码体系。
+- [x] 邮件自动发货是主路径；平台站内消息只作为辅助路径。
+- [x] 不使用模拟登录、爬虫或不稳定浏览器自动化作为 v1 发货关键路径。
 
 服务端数据模型：
 
-- [ ] 增加 `orders` 或等价订单表，记录外部订单。
-- [ ] 订单字段包含 `source`、`external_order_id`、`buyer_email`、`status`、`amount`、`currency`、`raw_payload`。
-- [ ] `source + external_order_id` 必须唯一，避免重复发货。
-- [ ] license 记录关联 `order_id`，并保留已有 Stripe 关联字段。
+- [x] 增加 `orders` 或等价订单表，记录外部订单。
+- [x] 订单字段包含 `source`、`external_order_id`、`buyer_email`、`status`、`amount`、`currency`、`raw_payload`。
+- [x] `source + external_order_id` 必须唯一，避免重复发货。
+- [x] license 记录关联 `order_id`，并保留已有 Stripe 关联字段。
 - [ ] `source` 至少支持 `stripe`、`xianyu`、`weidian`、`woocommerce`、`manual`。
 
 服务端 API：
 
-- [ ] `POST /v1/orders/manual-fulfill`：后台手动创建或确认外部订单并发 license。
+- [x] `GET /admin/manual-fulfill`：极简网页后台，输入邮箱和订单号后手动发货。
+- [x] `POST /v1/orders/manual-fulfill`：后台手动创建或确认外部订单并发 license。
 - [ ] `POST /v1/webhooks/woocommerce`：接收 WooCommerce 已付款订单 webhook。
 - [ ] `POST /v1/orders/import`：批量导入咸鱼/微店订单 CSV 或 JSON。
 - [ ] `GET /v1/orders/:id`：查询订单履约状态。
@@ -242,24 +243,25 @@ Stripe events（需要处理的 Stripe 事件）：
 
 安全要求：
 
-- [ ] 后台履约接口必须有 admin token 或更强后台认证，不能公开调用。
+- [x] 后台履约接口必须有 admin token 或更强后台认证，不能公开调用。
 - [ ] WooCommerce webhook 必须校验签名或共享密钥。
 - [ ] 订单导入必须校验邮箱格式、订单号、渠道来源。
-- [ ] 不在客户端保存咸鱼、微店、WordPress、WooCommerce 的任何后台凭据。
+- [x] 不在客户端保存咸鱼、微店、WordPress、WooCommerce 的任何后台凭据。
+- [x] 对手动履约订单写入 audit log。
 - [ ] 对重复订单、退款订单、异常订单写入 audit log。
 
 发货规则：
 
-- [ ] 已付款订单才创建 license。
-- [ ] 同一个外部订单号重复提交时，不重复创建 license。
-- [ ] 邮件发送失败不回滚 license，但记录失败状态，允许重发。
+- [x] 已付款订单才创建 license，手动履约等同于管理员确认已付款。
+- [x] 同一个外部订单号重复提交时，不重复创建 license。
+- [x] 邮件发送失败不回滚 license，但记录失败状态，允许重发。
 - [ ] 如平台支持站内消息 API，可在邮件成功后附加发送站内消息；失败不影响邮件主发货。
-- [ ] 如果平台不支持站内消息 API，后台显示可复制的发货文本，由人工发送到平台对话。
+- [x] 如果平台不支持站内消息 API，后台显示可复制的发货文本，由人工发送到平台对话。
 
 验收：
 
-- [ ] 手动录入咸鱼订单后，服务端生成 license 并发送邮件。
-- [ ] 重复录入同一咸鱼订单不会重复发 license。
+- [x] 手动录入咸鱼订单后，服务端生成 license 并发送邮件。
+- [x] 重复录入同一咸鱼订单不会重复发 license。
 - [ ] 导入微店订单后，已付款订单自动发货，未付款订单不发货。
 - [ ] WooCommerce 测试订单支付完成后，webhook 自动创建 license 并发邮件。
 - [ ] 外部订单 license 可在客户端正常激活。
