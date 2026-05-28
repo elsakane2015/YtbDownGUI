@@ -394,8 +394,8 @@ IPC：
 
 `src/lib/ipc.ts`：
 
-- [ ] 增加 entitlement 类型。
-- [ ] 增加 entitlement invoke wrappers。
+- [x] 增加 entitlement 类型。
+- [x] 增加 entitlement invoke wrappers。
 
 `src/pages/SettingsPage.tsx`：
 

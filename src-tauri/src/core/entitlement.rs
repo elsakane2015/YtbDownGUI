@@ -93,6 +93,28 @@ pub struct TransferCodeStatus {
     pub dev_code: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FreeQuotaStatus {
+    pub installation_id: String,
+    pub quota_limit: u32,
+    pub used_count: u32,
+    pub reserved_count: u32,
+    pub remaining_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FreeQuotaReservation {
+    pub installation_id: String,
+    pub quota_limit: u32,
+    pub used_count: u32,
+    pub reserved_count: u32,
+    pub remaining_count: u32,
+    pub reservation_id: Option<String>,
+    pub reservation_status: Option<String>,
+    pub reservation_count: Option<u32>,
+    pub expires_at: Option<String>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 struct EntitlementClaims {
     license_id: String,
@@ -160,6 +182,22 @@ struct ActivateWithTransferCodeRequest<'a> {
     device_name: &'a str,
     platform: &'a str,
     app_version: &'a str,
+}
+
+#[derive(Debug, Serialize)]
+struct FreeQuotaStatusRequest<'a> {
+    installation_id: &'a str,
+}
+
+#[derive(Debug, Serialize)]
+struct FreeQuotaReserveRequest<'a> {
+    installation_id: &'a str,
+    count: u32,
+}
+
+#[derive(Debug, Serialize)]
+struct FreeQuotaReservationRequest<'a> {
+    reservation_id: &'a str,
 }
 
 #[derive(Debug, Deserialize)]
@@ -430,6 +468,65 @@ impl EntitlementStore {
         }
     }
 
+    pub async fn sync_free_quota_status(&self) -> AppResult<FreeQuotaStatus> {
+        let status = self.get_status()?;
+        let request = FreeQuotaStatusRequest {
+            installation_id: &status.installation_id,
+        };
+        let quota = self
+            .client()?
+            .post(self.endpoint("/v1/free-quota/status"))
+            .json(&request)
+            .send()
+            .await
+            .map_err(http_error)?
+            .error_for_status()
+            .map_err(status_error)?
+            .json::<FreeQuotaStatus>()
+            .await
+            .map_err(http_error)?;
+        self.apply_free_quota_cache(&quota)?;
+        Ok(quota)
+    }
+
+    pub async fn reserve_free_quota(&self, count: u32) -> AppResult<FreeQuotaReservation> {
+        let status = self.get_status()?;
+        let request = FreeQuotaReserveRequest {
+            installation_id: &status.installation_id,
+            count,
+        };
+        let quota = self
+            .client()?
+            .post(self.endpoint("/v1/free-quota/reserve"))
+            .json(&request)
+            .send()
+            .await
+            .map_err(http_error)?
+            .error_for_status()
+            .map_err(status_error)?
+            .json::<FreeQuotaReservation>()
+            .await
+            .map_err(http_error)?;
+        self.apply_free_quota_reservation_cache(&quota)?;
+        Ok(quota)
+    }
+
+    pub async fn confirm_free_quota(
+        &self,
+        reservation_id: String,
+    ) -> AppResult<FreeQuotaReservation> {
+        self.complete_free_quota_reservation("/v1/free-quota/confirm", reservation_id)
+            .await
+    }
+
+    pub async fn release_free_quota(
+        &self,
+        reservation_id: String,
+    ) -> AppResult<FreeQuotaReservation> {
+        self.complete_free_quota_reservation("/v1/free-quota/release", reservation_id)
+            .await
+    }
+
     fn ensure_identity(&self, state: &mut EntitlementFile, key: &str) -> AppResult<IdentityValue> {
         if let Ok(Some(id)) = read_keyring(key) {
             match key {
@@ -482,6 +579,20 @@ impl EntitlementStore {
         self.persist(&state)
     }
 
+    fn apply_free_quota_cache(&self, quota: &FreeQuotaStatus) -> AppResult<()> {
+        let mut state = self.state.lock().unwrap();
+        state.trial_used_count_cache = Some(quota.used_count);
+        state.trial_remaining_count_cache = Some(quota.remaining_count);
+        self.persist(&state)
+    }
+
+    fn apply_free_quota_reservation_cache(&self, quota: &FreeQuotaReservation) -> AppResult<()> {
+        let mut state = self.state.lock().unwrap();
+        state.trial_used_count_cache = Some(quota.used_count);
+        state.trial_remaining_count_cache = Some(quota.remaining_count);
+        self.persist(&state)
+    }
+
     fn try_emergency_grace(&self, device_id: &str, token: &str) -> AppResult<()> {
         let claims = validate_token_for_device(token, device_id, &self.public_key, false)
             .map_err(AppError::Other)?;
@@ -515,6 +626,30 @@ impl EntitlementStore {
 
     fn endpoint(&self, path: &str) -> String {
         format!("{}{}", self.license_server_url, path)
+    }
+
+    async fn complete_free_quota_reservation(
+        &self,
+        path: &str,
+        reservation_id: String,
+    ) -> AppResult<FreeQuotaReservation> {
+        let request = FreeQuotaReservationRequest {
+            reservation_id: reservation_id.trim(),
+        };
+        let quota = self
+            .client()?
+            .post(self.endpoint(path))
+            .json(&request)
+            .send()
+            .await
+            .map_err(http_error)?
+            .error_for_status()
+            .map_err(status_error)?
+            .json::<FreeQuotaReservation>()
+            .await
+            .map_err(http_error)?;
+        self.apply_free_quota_reservation_cache(&quota)?;
+        Ok(quota)
     }
 }
 
@@ -977,6 +1112,85 @@ mod tests {
 
         assert!(status.pro_active);
         assert_eq!(status.license_email.as_deref(), Some("buyer@example.com"));
+    }
+
+    #[tokio::test]
+    async fn sync_free_quota_status_updates_local_cache() {
+        let temp = tempfile::tempdir().unwrap();
+        let server = mock_json_server(
+            r#"{
+              "installation_id":"ytb_installation",
+              "quota_limit":10,
+              "used_count":2,
+              "reserved_count":0,
+              "remaining_count":8
+            }"#
+            .into(),
+        );
+        let store = EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, &server.url)
+            .unwrap();
+
+        let quota = store.sync_free_quota_status().await.unwrap();
+        let status = store.get_status().unwrap();
+
+        assert_eq!(quota.remaining_count, 8);
+        assert_eq!(status.trial_used_count_cache, Some(2));
+        assert_eq!(status.trial_remaining_count_cache, Some(8));
+    }
+
+    #[tokio::test]
+    async fn reserve_free_quota_updates_local_cache() {
+        let temp = tempfile::tempdir().unwrap();
+        let server = mock_json_server(
+            r#"{
+              "installation_id":"ytb_installation",
+              "quota_limit":10,
+              "used_count":2,
+              "reserved_count":1,
+              "remaining_count":7,
+              "reservation_id":"reservation_test",
+              "reservation_status":"reserved",
+              "reservation_count":1,
+              "expires_at":"2099-01-01T00:00:00.000Z"
+            }"#
+            .into(),
+        );
+        let store = EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, &server.url)
+            .unwrap();
+
+        let quota = store.reserve_free_quota(1).await.unwrap();
+        let status = store.get_status().unwrap();
+
+        assert_eq!(quota.reservation_id.as_deref(), Some("reservation_test"));
+        assert_eq!(status.trial_remaining_count_cache, Some(7));
+    }
+
+    #[tokio::test]
+    async fn confirm_free_quota_updates_local_cache() {
+        let temp = tempfile::tempdir().unwrap();
+        let server = mock_json_server(
+            r#"{
+              "installation_id":"ytb_installation",
+              "quota_limit":10,
+              "used_count":3,
+              "reserved_count":0,
+              "remaining_count":7,
+              "reservation_id":"reservation_test",
+              "reservation_status":"confirmed",
+              "reservation_count":1,
+              "expires_at":"2099-01-01T00:00:00.000Z"
+            }"#
+            .into(),
+        );
+        let store = EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, &server.url)
+            .unwrap();
+
+        let quota = store.confirm_free_quota("reservation_test".into()).await.unwrap();
+        let status = store.get_status().unwrap();
+
+        assert_eq!(quota.reservation_status.as_deref(), Some("confirmed"));
+        assert_eq!(status.trial_used_count_cache, Some(3));
+        assert_eq!(status.trial_remaining_count_cache, Some(7));
     }
 
     fn test_token(device_id: &str, exp: u64) -> String {

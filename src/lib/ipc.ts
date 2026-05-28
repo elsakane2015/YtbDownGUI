@@ -191,6 +191,21 @@ export type TransferCodeStatus = {
   dev_code: string | null;
 };
 
+export type FreeQuotaStatus = {
+  installation_id: string;
+  quota_limit: number;
+  used_count: number;
+  reserved_count: number;
+  remaining_count: number;
+};
+
+export type FreeQuotaReservation = FreeQuotaStatus & {
+  reservation_id: string | null;
+  reservation_status: string | null;
+  reservation_count: number | null;
+  expires_at: string | null;
+};
+
 // ---- IPC wrappers ----
 
 export const probeToolVersions = () =>
@@ -252,6 +267,18 @@ export const activateWithTransferCode = (
     licenseKey,
     transferCode,
   });
+
+export const syncFreeQuotaStatus = () =>
+  invoke<FreeQuotaStatus>("sync_free_quota_status");
+
+export const reserveFreeQuota = (count: number) =>
+  invoke<FreeQuotaReservation>("reserve_free_quota", { count });
+
+export const confirmFreeQuota = (reservationId: string) =>
+  invoke<FreeQuotaReservation>("confirm_free_quota", { reservationId });
+
+export const releaseFreeQuota = (reservationId: string) =>
+  invoke<FreeQuotaReservation>("release_free_quota", { reservationId });
 
 // ---- settings ----
 
