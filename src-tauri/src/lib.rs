@@ -28,6 +28,9 @@ pub fn run() {
             // their list on app restart.
             queue.restore_from_disk(&data_dir);
             app.manage(queue);
+            app.handle()
+                .state::<QueueManager>()
+                .reconcile_quota_reservations(&app.handle());
 
             // Background task: persist job history every 5s so a hard crash
             // loses at most a few seconds of state. The explicit on-exit

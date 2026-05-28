@@ -2,7 +2,7 @@
 //! running yt-dlp as a child process and streaming progress back to the UI
 //! via Tauri events.
 
-use crate::core::{cookies, settings::SettingsStore, sites};
+use crate::core::{cookies, entitlement::EntitlementStore, settings::SettingsStore, sites};
 use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
@@ -167,6 +167,10 @@ pub struct DownloadJob {
     pub batch_id: Option<String>,
     pub created_at_ms: i64,
     pub completed_at_ms: Option<i64>, // set on terminal state (done/failed/canceled/skipped)
+    #[serde(default)]
+    pub quota_reservation_id: Option<String>,
+    #[serde(default)]
+    pub quota_reservation_settled: bool,
 }
 
 // --- manager (Tauri-managed singleton) ------------------------------------
@@ -239,7 +243,12 @@ impl QueueManager {
         Ok(())
     }
 
-    pub fn enqueue(&self, app: &AppHandle, req: EnqueueRequest) -> AppResult<String> {
+    pub fn enqueue(
+        &self,
+        app: &AppHandle,
+        req: EnqueueRequest,
+        quota_reservation_id: Option<String>,
+    ) -> AppResult<String> {
         let id = Uuid::new_v4().to_string();
         let settings_default = app.state::<SettingsStore>().get().download_dir;
         let output_dir = req
@@ -261,8 +270,14 @@ impl QueueManager {
             batch_id: req.batch_id.clone(),
             created_at_ms: now_ms(),
             completed_at_ms: None,
+            quota_reservation_id,
+            quota_reservation_settled: false,
         };
-        self.inner.jobs.lock().unwrap().insert(id.clone(), job.clone());
+        self.inner
+            .jobs
+            .lock()
+            .unwrap()
+            .insert(id.clone(), job.clone());
         self.inner.pending.lock().unwrap().push_back(id.clone());
         let _ = app.emit("download:state", &job);
 
@@ -273,7 +288,11 @@ impl QueueManager {
         let handle = tauri::async_runtime::spawn(async move {
             run_one_job(inner, app_handle, job_id_for_task, req).await;
         });
-        self.inner.abort_handles.lock().unwrap().insert(id.clone(), handle);
+        self.inner
+            .abort_handles
+            .lock()
+            .unwrap()
+            .insert(id.clone(), handle);
         Ok(id)
     }
 
@@ -283,10 +302,16 @@ impl QueueManager {
         &self,
         app: &AppHandle,
         req: EnqueueBatchRequest,
+        quota_reservation_ids: Vec<Option<String>>,
     ) -> AppResult<BatchEnqueueResult> {
+        if quota_reservation_ids.len() != req.entries.len() {
+            return Err(AppError::Other(
+                "quota reservation count does not match batch size".into(),
+            ));
+        }
         let batch_id = Uuid::new_v4().to_string();
         let mut job_ids = Vec::with_capacity(req.entries.len());
-        for entry in req.entries {
+        for (entry, quota_reservation_id) in req.entries.into_iter().zip(quota_reservation_ids) {
             let id = self.enqueue(
                 app,
                 EnqueueRequest {
@@ -299,6 +324,7 @@ impl QueueManager {
                     expected_total_bytes: entry.expected_total_bytes,
                     video_id_hint: entry.video_id_hint,
                 },
+                quota_reservation_id,
             )?;
             job_ids.push(id);
         }
@@ -312,20 +338,26 @@ impl QueueManager {
         v
     }
 
-    pub fn cancel(&self, id: &str) -> AppResult<()> {
+    pub fn cancel(&self, app: &AppHandle, id: &str) -> AppResult<()> {
         if let Some(handle) = self.inner.abort_handles.lock().unwrap().remove(id) {
             handle.abort();
         }
-        if let Some(job) = self.inner.jobs.lock().unwrap().get_mut(id) {
-            if matches!(job.state, JobState::Pending | JobState::Running) {
-                job.state = JobState::Canceled;
-            }
+        let should_cancel = self
+            .inner
+            .jobs
+            .lock()
+            .unwrap()
+            .get(id)
+            .map(|job| matches!(job.state, JobState::Pending | JobState::Running))
+            .unwrap_or(false);
+        if should_cancel {
+            set_state(&self.inner, app, id, JobState::Canceled, None, None);
         }
         Ok(())
     }
 
     /// Cancel every job with the given batch_id.
-    pub fn cancel_batch(&self, batch_id: &str) -> AppResult<usize> {
+    pub fn cancel_batch(&self, app: &AppHandle, batch_id: &str) -> AppResult<usize> {
         let ids: Vec<String> = self
             .inner
             .jobs
@@ -338,7 +370,7 @@ impl QueueManager {
             .collect();
         let n = ids.len();
         for id in ids {
-            let _ = self.cancel(&id);
+            let _ = self.cancel(app, &id);
         }
         Ok(n)
     }
@@ -349,25 +381,44 @@ impl QueueManager {
             jobs.retain(|_, j| {
                 !matches!(
                     j.state,
-                    JobState::Done
-                        | JobState::Failed
-                        | JobState::Canceled
-                        | JobState::Skipped
+                    JobState::Done | JobState::Failed | JobState::Canceled | JobState::Skipped
                 )
             });
         }
         self.list()
     }
+
+    pub fn reconcile_quota_reservations(&self, app: &AppHandle) {
+        let actions: Vec<(String, String, JobState)> = self
+            .inner
+            .jobs
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|job| !job.quota_reservation_settled)
+            .filter(|job| is_terminal_state(&job.state))
+            .filter_map(|job| {
+                job.quota_reservation_id
+                    .clone()
+                    .map(|reservation_id| (job.id.clone(), reservation_id, job.state.clone()))
+            })
+            .collect();
+
+        for (job_id, reservation_id, state) in actions {
+            spawn_quota_settlement(
+                self.inner.clone(),
+                app.clone(),
+                job_id,
+                reservation_id,
+                state,
+            );
+        }
+    }
 }
 
 // --- the per-job task -----------------------------------------------------
 
-async fn run_one_job(
-    inner: Arc<Inner>,
-    app: AppHandle,
-    job_id: String,
-    req: EnqueueRequest,
-) {
+async fn run_one_job(inner: Arc<Inner>, app: AppHandle, job_id: String, req: EnqueueRequest) {
     let _permit = match inner.semaphore.clone().acquire_owned().await {
         Ok(p) => p,
         Err(_) => return,
@@ -431,14 +482,11 @@ async fn run_one_job(
     // Text-form fallback (defensive — useful if --progress-template gets
     // disabled or the user pipes our output somewhere). Keep loose.
     let re_progress_pct = regex::Regex::new(r"\[download\]\s+([\d.]+)%").unwrap();
-    let re_progress_speed =
-        regex::Regex::new(r"at\s+([\d.]+\w+/s|Unknown\s*B/s)").unwrap();
+    let re_progress_speed = regex::Regex::new(r"at\s+([\d.]+\w+/s|Unknown\s*B/s)").unwrap();
     let re_progress_eta = regex::Regex::new(r"ETA\s+([\d:-]+|Unknown)").unwrap();
     // "[download] /full/path/file.mp4 has already been downloaded"
-    let re_already = regex::Regex::new(
-        r"^\[download\]\s+(.+?)\s+has already been downloaded",
-    )
-    .unwrap();
+    let re_already =
+        regex::Regex::new(r"^\[download\]\s+(.+?)\s+has already been downloaded").unwrap();
     let re_merging = regex::Regex::new(r"Merging formats into|\[Merger\]").unwrap();
     let re_final = regex::Regex::new(r"^\[YTDLP_FINAL\](.+)$").unwrap();
 
@@ -497,12 +545,8 @@ async fn run_one_job(
                     } else if let Some(cap) = re_progress_pct.captures(line) {
                         // Fallback: text-form parsing for older yt-dlp / edge cases.
                         let percent: f64 = cap[1].parse().unwrap_or(0.0);
-                        let speed = re_progress_speed
-                            .captures(line)
-                            .map(|c| c[1].to_string());
-                        let eta = re_progress_eta
-                            .captures(line)
-                            .map(|c| c[1].to_string());
+                        let speed = re_progress_speed.captures(line).map(|c| c[1].to_string());
+                        let eta = re_progress_eta.captures(line).map(|c| c[1].to_string());
                         set_progress(
                             &inner,
                             &app,
@@ -596,12 +640,7 @@ async fn run_one_job(
                     );
                 } else {
                     let last = last_stderr_tail.last().cloned().unwrap_or_default();
-                    fail(
-                        &inner,
-                        &app,
-                        &job_id,
-                        &format!("exit {code:?}: {last}"),
-                    );
+                    fail(&inner, &app, &job_id, &format!("exit {code:?}: {last}"));
                 }
                 break;
             }
@@ -753,20 +792,18 @@ fn apply_subtitle_args(sel: &SubtitleSelection, args: &mut Vec<String>) {
 // --- helpers --------------------------------------------------------------
 
 fn set_state(
-    inner: &Inner,
+    inner: &Arc<Inner>,
     app: &AppHandle,
     id: &str,
     state: JobState,
     progress: Option<JobProgress>,
     error: Option<String>,
 ) {
-    let snapshot = {
+    let (snapshot, quota_action) = {
         let mut jobs = inner.jobs.lock().unwrap();
         if let Some(job) = jobs.get_mut(id) {
-            let is_terminal = matches!(
-                state,
-                JobState::Done | JobState::Failed | JobState::Canceled | JobState::Skipped
-            );
+            let was_terminal = is_terminal_state(&job.state);
+            let is_terminal = is_terminal_state(&state);
             job.state = state.clone();
             if let Some(p) = progress {
                 job.progress = Some(p);
@@ -777,14 +814,82 @@ fn set_state(
             if is_terminal && job.completed_at_ms.is_none() {
                 job.completed_at_ms = Some(now_ms());
             }
-            Some(job.clone())
+            let quota_action = if is_terminal && !was_terminal && !job.quota_reservation_settled {
+                job.quota_reservation_id
+                    .clone()
+                    .map(|reservation_id| (job.id.clone(), reservation_id, state.clone()))
+            } else {
+                None
+            };
+            (Some(job.clone()), quota_action)
         } else {
-            None
+            (None, None)
         }
     };
     if let Some(j) = snapshot {
         let _ = app.emit("download:state", &j);
     }
+    if let Some((job_id, reservation_id, terminal_state)) = quota_action {
+        spawn_quota_settlement(
+            inner.clone(),
+            app.clone(),
+            job_id,
+            reservation_id,
+            terminal_state,
+        );
+    }
+}
+
+fn is_terminal_state(state: &JobState) -> bool {
+    matches!(
+        state,
+        JobState::Done | JobState::Failed | JobState::Canceled | JobState::Skipped
+    )
+}
+
+fn spawn_quota_settlement(
+    inner: Arc<Inner>,
+    app: AppHandle,
+    job_id: String,
+    reservation_id: String,
+    terminal_state: JobState,
+) {
+    tauri::async_runtime::spawn(async move {
+        let entitlement = app.state::<EntitlementStore>();
+        let result = match terminal_state {
+            JobState::Done => entitlement.confirm_free_quota(reservation_id.clone()).await,
+            JobState::Failed | JobState::Canceled | JobState::Skipped => {
+                entitlement.release_free_quota(reservation_id.clone()).await
+            }
+            JobState::Pending | JobState::Running => return,
+        };
+
+        match result {
+            Ok(_) => {
+                let snapshot = {
+                    let mut jobs = inner.jobs.lock().unwrap();
+                    if let Some(job) = jobs.get_mut(&job_id) {
+                        if job.quota_reservation_id.as_deref() == Some(&reservation_id) {
+                            job.quota_reservation_settled = true;
+                            Some(job.clone())
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                };
+                if let Some(job) = snapshot {
+                    let _ = app.emit("download:state", &job);
+                }
+            }
+            Err(error) => {
+                eprintln!(
+                    "[download:{job_id}] quota settlement failed for reservation {reservation_id}: {error}"
+                );
+            }
+        }
+    });
 }
 
 /// Watch `output_dir` for `.part` files belonging to this job and emit
@@ -905,8 +1010,7 @@ fn spawn_progress_poller(
                 speed_samples.pop_front();
             }
             speed_samples.push_back(instant_speed);
-            let avg_speed: f64 =
-                speed_samples.iter().sum::<f64>() / speed_samples.len() as f64;
+            let avg_speed: f64 = speed_samples.iter().sum::<f64>() / speed_samples.len() as f64;
 
             let (percent, eta_text) = if let Some(t) = expected_total {
                 if t > 0 {
@@ -961,7 +1065,12 @@ fn list_dir_for_log(dir: &Path, id_hint: Option<&str>) -> String {
             matching.push(format!("{name} ({size}B)"));
         }
     }
-    format!("[{} entries, {} matching: {:?}]", total, matching.len(), matching)
+    format!(
+        "[{} entries, {} matching: {:?}]",
+        total,
+        matching.len(),
+        matching
+    )
 }
 
 fn sum_part_files(dir: &Path, id_hint: Option<&str>) -> u64 {
@@ -1066,7 +1175,7 @@ fn format_eta(seconds: i64) -> String {
     }
 }
 
-fn set_progress(inner: &Inner, app: &AppHandle, id: &str, progress: JobProgress) {
+fn set_progress(inner: &Arc<Inner>, app: &AppHandle, id: &str, progress: JobProgress) {
     let snapshot = {
         let mut jobs = inner.jobs.lock().unwrap();
         if let Some(job) = jobs.get_mut(id) {
@@ -1082,14 +1191,11 @@ fn set_progress(inner: &Inner, app: &AppHandle, id: &str, progress: JobProgress)
             id: String,
             progress: JobProgress,
         }
-        let _ = app.emit(
-            "download:progress",
-            Payload { id, progress: p },
-        );
+        let _ = app.emit("download:progress", Payload { id, progress: p });
     }
 }
 
-fn fail(inner: &Inner, app: &AppHandle, id: &str, msg: &str) {
+fn fail(inner: &Arc<Inner>, app: &AppHandle, id: &str, msg: &str) {
     eprintln!("[download:{id}] failed: {msg}");
     set_state(inner, app, id, JobState::Failed, None, Some(msg.into()));
 }
@@ -1104,7 +1210,6 @@ fn prepare_cookies(app: &AppHandle, site_id: &str) -> AppResult<PathBuf> {
     Ok(out)
 }
 
-
 fn bundled_ffmpeg_path(app: &AppHandle) -> AppResult<PathBuf> {
     bundled_sidecar_path(app, "ffmpeg")
 }
@@ -1117,9 +1222,7 @@ fn bundled_ytdlp_path(app: &AppHandle) -> AppResult<PathBuf> {
 /// Build a yt-dlp Command. If the user has installed an updated yt-dlp via
 /// the in-app updater (lands in `$APP_DATA/bin/yt-dlp`), prefer that path
 /// over the bundled sidecar. Falls back to the sidecar otherwise.
-pub fn yt_dlp_command(
-    app: &AppHandle,
-) -> AppResult<tauri_plugin_shell::process::Command> {
+pub fn yt_dlp_command(app: &AppHandle) -> AppResult<tauri_plugin_shell::process::Command> {
     if let Ok(dir) = crate::core::paths::data_dir(app) {
         let bin_name = if cfg!(target_os = "windows") {
             "yt-dlp.exe"
@@ -1128,9 +1231,7 @@ pub fn yt_dlp_command(
         };
         let user_bin = dir.join("bin").join(bin_name);
         if user_bin.exists() {
-            return Ok(app
-                .shell()
-                .command(user_bin.to_string_lossy().to_string()));
+            return Ok(app.shell().command(user_bin.to_string_lossy().to_string()));
         }
     }
     app.shell()
@@ -1167,7 +1268,10 @@ fn bundled_sidecar_path(app: &AppHandle, name: &str) -> AppResult<PathBuf> {
     }
     // Last-resort: resource_dir (older layouts).
     if let Ok(resource_dir) = app.path().resource_dir() {
-        for c in [resource_dir.join(&triple_name), resource_dir.join(&bare_name)] {
+        for c in [
+            resource_dir.join(&triple_name),
+            resource_dir.join(&bare_name),
+        ] {
             if c.exists() {
                 return Ok(c);
             }

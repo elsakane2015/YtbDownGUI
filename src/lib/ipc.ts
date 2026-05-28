@@ -155,6 +155,8 @@ export type DownloadJob = {
   batch_id: string | null;
   created_at_ms: number;
   completed_at_ms: number | null;
+  quota_reservation_id?: string | null;
+  quota_reservation_settled?: boolean;
 };
 
 // ---- entitlement ----

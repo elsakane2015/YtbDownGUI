@@ -355,20 +355,20 @@ IPC：
 
 修改点：
 
-- [ ] `commands::download::enqueue_download`
-- [ ] `commands::download::enqueue_batch`
-- [ ] `QueueManager` job terminal state handling
+- [x] `commands::download::enqueue_download`
+- [x] `commands::download::enqueue_batch`
+- [x] `QueueManager` job terminal state handling
 
 规则：
 
-- [ ] Pro token 有效：允许入队，不消耗免费额度。
-- [ ] 免费单视频：入队前 reserve 1 个额度。
-- [ ] 免费批量：入队前 reserve `entries.len()` 个额度。
-- [ ] 批量超过剩余额度：整个批次拒绝。
-- [ ] Job `Done`：confirm 1 个额度。
-- [ ] Job `Failed` / `Canceled`：release 1 个额度。
-- [ ] Job `Skipped`：默认 release，不消耗额度。
-- [ ] App 重启后，恢复 job 历史时释放不再活动的 reservation。
+- [x] Pro token 有效：允许入队，不消耗免费额度。
+- [x] 免费单视频：入队前 reserve 1 个额度。
+- [x] 免费批量：入队前按 job reserve 免费额度，避免多个 job 共用一个 reservation 后无法逐个 confirm/release。
+- [x] 批量超过剩余额度：整个批次拒绝。
+- [x] Job `Done`：confirm 1 个额度。
+- [x] Job `Failed` / `Canceled`：release 1 个额度。
+- [x] Job `Skipped`：默认 release，不消耗额度。
+- [x] App 重启后，恢复 job 历史时处理未结算的 reservation；`Done` 继续 confirm，其他终态 release。
 
 错误结构：
 
@@ -381,12 +381,12 @@ IPC：
 
 验收：
 
-- [ ] 免费剩余 0 时，单视频入队失败。
-- [ ] 免费剩余 2 时，批量 3 个入队失败且没有创建任何 job。
-- [ ] 下载失败不消耗额度。
-- [ ] 下载取消不消耗额度。
-- [ ] 文件已存在 skipped 不消耗额度。
-- [ ] 直接调用 Tauri invoke 也无法绕过限制。
+- [x] 免费剩余 0 时，单视频入队失败。
+- [x] 免费剩余 2 时，批量 3 个入队失败且没有创建任何 job。
+- [x] 下载失败不消耗额度。
+- [x] 下载取消不消耗额度。
+- [x] 文件已存在 skipped 不消耗额度。
+- [x] 直接调用 Tauri invoke 也无法绕过限制。
 
 ### Milestone 6: Client UI（客户端界面）
 
@@ -635,8 +635,8 @@ TERMS_URL=
 - [ ] entitlement status parsing（授权状态解析）。
 - [ ] token expiry handling（token 过期处理）。
 - [ ] emergency grace calculation（服务端故障时的紧急宽限期计算）。
-- [ ] quota error mapping（免费额度错误码映射）。
-- [ ] download state to quota confirm/release mapping（下载状态到额度 confirm/release 的映射）。
+- [x] quota error mapping（免费额度错误码映射）：客户端保留服务端 JSON 错误体，UI 可解析 `code`。
+- [ ] download state to quota confirm/release mapping（下载状态到额度 confirm/release 的映射）：逻辑已接入，待补单测。
 
 ### Integration Tests（集成测试）
 

@@ -1,7 +1,7 @@
 use crate::error::{AppError, AppResult};
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use reqwest::StatusCode;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -479,12 +479,8 @@ impl EntitlementStore {
             .json(&request)
             .send()
             .await
-            .map_err(http_error)?
-            .error_for_status()
-            .map_err(status_error)?
-            .json::<FreeQuotaStatus>()
-            .await
             .map_err(http_error)?;
+        let quota = json_or_status::<FreeQuotaStatus>(quota).await?;
         self.apply_free_quota_cache(&quota)?;
         Ok(quota)
     }
@@ -501,12 +497,8 @@ impl EntitlementStore {
             .json(&request)
             .send()
             .await
-            .map_err(http_error)?
-            .error_for_status()
-            .map_err(status_error)?
-            .json::<FreeQuotaReservation>()
-            .await
             .map_err(http_error)?;
+        let quota = json_or_status::<FreeQuotaReservation>(quota).await?;
         self.apply_free_quota_reservation_cache(&quota)?;
         Ok(quota)
     }
@@ -642,12 +634,8 @@ impl EntitlementStore {
             .json(&request)
             .send()
             .await
-            .map_err(http_error)?
-            .error_for_status()
-            .map_err(status_error)?
-            .json::<FreeQuotaReservation>()
-            .await
             .map_err(http_error)?;
+        let quota = json_or_status::<FreeQuotaReservation>(quota).await?;
         self.apply_free_quota_reservation_cache(&quota)?;
         Ok(quota)
     }
@@ -761,6 +749,21 @@ fn status_error(error: reqwest::Error) -> AppError {
     } else {
         http_error(error)
     }
+}
+
+async fn json_or_status<T: DeserializeOwned>(response: reqwest::Response) -> AppResult<T> {
+    let status = response.status();
+    if status.is_success() {
+        return response.json::<T>().await.map_err(http_error);
+    }
+
+    let body = response
+        .text()
+        .await
+        .unwrap_or_else(|_| String::from("<unreadable response body>"));
+    Err(AppError::Other(format!(
+        "license server returned {status}: {body}"
+    )))
 }
 
 fn now_seconds() -> u64 {
@@ -1127,8 +1130,8 @@ mod tests {
             }"#
             .into(),
         );
-        let store = EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, &server.url)
-            .unwrap();
+        let store =
+            EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, &server.url).unwrap();
 
         let quota = store.sync_free_quota_status().await.unwrap();
         let status = store.get_status().unwrap();
@@ -1155,14 +1158,31 @@ mod tests {
             }"#
             .into(),
         );
-        let store = EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, &server.url)
-            .unwrap();
+        let store =
+            EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, &server.url).unwrap();
 
         let quota = store.reserve_free_quota(1).await.unwrap();
         let status = store.get_status().unwrap();
 
         assert_eq!(quota.reservation_id.as_deref(), Some("reservation_test"));
         assert_eq!(status.trial_remaining_count_cache, Some(7));
+    }
+
+    #[tokio::test]
+    async fn reserve_free_quota_error_preserves_server_body() {
+        let temp = tempfile::tempdir().unwrap();
+        let server = mock_json_server_with_status(
+            402,
+            r#"{"code":"quota_exceeded","message":"免费版最多可下载 10 个视频。"}"#.into(),
+        );
+        let store =
+            EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, &server.url).unwrap();
+
+        let error = store.reserve_free_quota(1).await.unwrap_err().to_string();
+
+        assert!(error.contains("402"));
+        assert!(error.contains("quota_exceeded"));
+        assert!(error.contains("免费版最多可下载 10 个视频"));
     }
 
     #[tokio::test]
@@ -1182,10 +1202,13 @@ mod tests {
             }"#
             .into(),
         );
-        let store = EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, &server.url)
-            .unwrap();
+        let store =
+            EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, &server.url).unwrap();
 
-        let quota = store.confirm_free_quota("reservation_test".into()).await.unwrap();
+        let quota = store
+            .confirm_free_quota("reservation_test".into())
+            .await
+            .unwrap();
         let status = store.get_status().unwrap();
 
         assert_eq!(quota.reservation_status.as_deref(), Some("confirmed"));
@@ -1217,6 +1240,10 @@ mod tests {
     }
 
     fn mock_json_server(body: String) -> MockServer {
+        mock_json_server_with_status(200, body)
+    }
+
+    fn mock_json_server_with_status(status: u16, body: String) -> MockServer {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
         thread::spawn(move || {
@@ -1224,7 +1251,7 @@ mod tests {
             let mut request = [0_u8; 4096];
             let _ = stream.read(&mut request);
             let response = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                "HTTP/1.1 {status} OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
                 body.len(),
                 body
             );
