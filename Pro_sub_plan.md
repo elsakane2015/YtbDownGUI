@@ -219,7 +219,7 @@ Stripe events（需要处理的 Stripe 事件）：
 
 - [x] 咸鱼：要求买家提交购买邮箱，订单确认后通过后台录入触发发货。
 - [x] 微店：要求买家提交购买邮箱；没有稳定 API 时走后台确认。
-- [ ] WordPress / WooCommerce：作为优先自动化渠道，通过 WooCommerce webhook 通知 License Server。
+- [x] WordPress / WooCommerce：作为优先自动化渠道，通过 WooCommerce webhook 通知 License Server。
 - [x] 所有渠道统一使用购买邮箱 + license key 激活，不新增账号密码体系。
 - [x] 邮件自动发货是主路径；平台站内消息只作为辅助路径。
 - [x] 不使用模拟登录、爬虫或不稳定浏览器自动化作为 v1 发货关键路径。
@@ -236,7 +236,7 @@ Stripe events（需要处理的 Stripe 事件）：
 
 - [x] `GET /admin/manual-fulfill`：极简网页后台，输入邮箱和订单号后手动发货。
 - [x] `POST /v1/orders/manual-fulfill`：后台手动创建或确认外部订单并发 license。
-- [ ] `POST /v1/webhooks/woocommerce`：接收 WooCommerce 已付款订单 webhook。
+- [x] `POST /v1/webhooks/woocommerce`：接收 WooCommerce 已付款订单 webhook。
 - [x] `POST /v1/orders/import`：批量导入咸鱼/微店订单 JSON。
 - [x] `GET /v1/orders/:id`：查询订单履约状态。
 - [x] `POST /v1/orders/:id/resend`：重发该订单 license 邮件。
@@ -244,7 +244,7 @@ Stripe events（需要处理的 Stripe 事件）：
 安全要求：
 
 - [x] 后台履约接口必须有 admin token 或更强后台认证，不能公开调用。
-- [ ] WooCommerce webhook 必须校验签名或共享密钥。
+- [x] WooCommerce webhook 必须校验签名或共享密钥。
 - [x] 订单导入必须校验邮箱格式、订单号、渠道来源。
 - [x] 不在客户端保存咸鱼、微店、WordPress、WooCommerce 的任何后台凭据。
 - [x] 对手动履约订单写入 audit log。
