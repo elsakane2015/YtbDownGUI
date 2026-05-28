@@ -157,6 +157,24 @@ export type DownloadJob = {
   completed_at_ms: number | null;
 };
 
+// ---- entitlement ----
+
+export type EntitlementStatus = {
+  plan: "free" | "pro" | string;
+  pro_active: boolean;
+  device_id: string;
+  installation_id: string;
+  secure_storage_available: boolean;
+  license_id: string | null;
+  license_email: string | null;
+  license_key_last4: string | null;
+  signed_token: string | null;
+  token_expires_at: string | null;
+  trial_used_count_cache: number | null;
+  trial_remaining_count_cache: number | null;
+  emergency_grace_used_for_token: string | null;
+};
+
 // ---- IPC wrappers ----
 
 export const probeToolVersions = () =>
@@ -196,6 +214,9 @@ export const clearFinished = () =>
   invoke<DownloadJob[]>("clear_finished");
 
 export const defaultDownloadDir = () => invoke<string>("default_download_dir");
+
+export const getEntitlementStatus = () =>
+  invoke<EntitlementStatus>("get_entitlement_status");
 
 // ---- settings ----
 

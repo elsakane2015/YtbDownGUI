@@ -3,6 +3,7 @@ mod core;
 mod error;
 
 use crate::core::download::QueueManager;
+use crate::core::entitlement::EntitlementStore;
 use crate::core::paths;
 use crate::core::settings::SettingsStore;
 use std::time::Duration;
@@ -19,6 +20,8 @@ pub fn run() {
             let settings = SettingsStore::load(&data_dir).map_err(|e| e.to_string())?;
             let concurrency = settings.get().max_concurrency;
             app.manage(settings);
+            let entitlement = EntitlementStore::load(&data_dir).map_err(|e| e.to_string())?;
+            app.manage(entitlement);
 
             let queue = QueueManager::new(concurrency);
             // Restore the previous run's job history so the user doesn't lose
@@ -88,6 +91,7 @@ pub fn run() {
             commands::download::cancel_batch,
             commands::download::clear_finished,
             commands::download::default_download_dir,
+            commands::entitlement::get_entitlement_status,
             commands::settings::get_settings,
             commands::settings::update_settings,
             commands::system::open_path,

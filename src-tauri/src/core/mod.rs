@@ -1,5 +1,6 @@
 pub mod cookies;
 pub mod download;
+pub mod entitlement;
 pub mod log;
 pub mod login_window;
 pub mod paths;

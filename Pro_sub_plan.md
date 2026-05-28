@@ -307,14 +307,14 @@ Stripe events（需要处理的 Stripe 事件）：
 
 Rust 新增模块：
 
-- [ ] `src-tauri/src/core/entitlement.rs`
-- [ ] `src-tauri/src/commands/entitlement.rs`
+- [x] `src-tauri/src/core/entitlement.rs`
+- [x] `src-tauri/src/commands/entitlement.rs`
 
 Rust 新增依赖：
 
-- [ ] `keyring`
+- [x] `keyring`
 - [ ] `ed25519-dalek` 或同等 Ed25519 verifier
-- [ ] 如需 HTTP 调用复用现有 `reqwest`
+- [x] 如需 HTTP 调用复用现有 `reqwest`
 
 本地状态：
 
@@ -333,7 +333,7 @@ Rust 新增依赖：
 
 IPC：
 
-- [ ] `get_entitlement_status`
+- [x] `get_entitlement_status`
 - [ ] `activate_pro`
 - [ ] `refresh_pro`
 - [ ] `deactivate_pro`
@@ -342,9 +342,9 @@ IPC：
 
 验收：
 
-- [ ] 首次启动生成并持久化 `device_id` / `installation_id`。
-- [ ] 删除 `$APP_DATA/entitlement.json` 后，系统安全存储里的 id 仍可恢复。
-- [ ] 系统安全存储不可用时 fallback 到 `$APP_DATA`，并记录 `secure_storage_available=false`。
+- [x] 首次启动生成并持久化 `device_id` / `installation_id`。
+- [x] 删除 `$APP_DATA/entitlement.json` 后，系统安全存储里的 id 仍可恢复。
+- [x] 系统安全存储不可用时 fallback 到 `$APP_DATA`，并记录 `secure_storage_available=false`。
 - [ ] 有效 signed token 本地验签通过时显示 Pro。
 - [ ] token 未过期但服务端不可用时，Pro 仍可用。
 - [ ] token 过期后触发 refresh 或 emergency grace。

@@ -30,6 +30,7 @@ cookie = "0.18"
 regex = "1"
 uuid = { version = "1", features = ["v4"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+keyring = "3"
 
 [dev-dependencies]
 tempfile = "3"
