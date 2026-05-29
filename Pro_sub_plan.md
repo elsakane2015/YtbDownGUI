@@ -458,7 +458,7 @@ IPC：
 - [ ] 配置 Stripe live webhook。
 - [ ] 配置 Resend production sender domain。
 - [ ] 配置 `ytbdown@litotime.com` 发信域名验证和收信转发。
-- [ ] 配置日志、错误监控和数据库备份。（已补 Docker 日志轮转和 PostgreSQL 备份脚本；错误监控待接入。）
+- [ ] 配置日志、错误监控和数据库备份。（已补 Docker 日志轮转、PostgreSQL 备份脚本和可选错误监控 webhook；VPS 实机启用待执行。）
 - [ ] 配置防火墙，仅开放 80、443、SSH。（已补部署文档，VPS 实机配置待执行。）
 - [ ] 配置 PostgreSQL 自动备份和一次恢复演练。
 - [x] 配置日志轮转，避免磁盘被日志打满。
