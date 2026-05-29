@@ -628,7 +628,7 @@ TERMS_URL=
 - [x] license key HMAC lookup（license key 使用 HMAC 查询）。
 - [x] token `kid` key rotation support（token `kid` 密钥轮换支持）：服务端签发 token 已带 `kid`。
 - [x] Stripe API version is pinned in SDK initialization（Stripe SDK 初始化时固定 API 版本）。
-- [ ] Caddy / trusted proxy IP handling can be configured safely（Caddy 和可信反代 IP 可安全配置）。
+- [x] Caddy / trusted proxy IP handling can be configured safely（Caddy 和可信反代 IP 可安全配置）。
 
 ### Client Unit Tests（客户端单元测试）
 
