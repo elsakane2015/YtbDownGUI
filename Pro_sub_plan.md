@@ -615,28 +615,28 @@ TERMS_URL=
 - [x] license key generation uniqueness and format（license key 生成唯一性和格式）。
 - [x] license key hash lookup（license key hash 查询）。
 - [x] token signing and verification（token 签名和验签）。
-- [ ] activation limit（设备激活数量限制）。
-- [ ] idle-device auto migration（闲置设备自动迁移）。
-- [ ] active-device transfer code flow（活跃设备满额时的邮箱验证码迁移流程）。
-- [ ] webhook idempotency（webhook 幂等处理）。
-- [ ] Stripe raw body signature verification（Stripe raw body 签名校验）。
-- [ ] full refund disables license（全额退款后禁用 license）。
-- [ ] partial refund does not disable license（部分退款不禁用 license）。
+- [x] activation limit（设备激活数量限制）。
+- [x] idle-device auto migration（闲置设备自动迁移）。
+- [x] active-device transfer code flow（活跃设备满额时的邮箱验证码迁移流程）。
+- [x] webhook idempotency（webhook 幂等处理）。
+- [x] Stripe raw body signature verification（Stripe raw body 签名校验）。
+- [x] full refund disables license（全额退款后禁用 license）。
+- [x] partial refund does not disable license（部分退款不禁用 license）。
 - [x] free quota reserve / confirm / release（免费额度预留、确认、释放）。
 - [x] free quota reservation idempotency（免费额度 reservation 幂等）。
 - [x] reservation expiration cleanup（过期 reservation 清理）。
 - [x] license key HMAC lookup（license key 使用 HMAC 查询）。
-- [ ] token `kid` key rotation support（token `kid` 密钥轮换支持）。
-- [ ] Stripe API version is pinned in SDK initialization（Stripe SDK 初始化时固定 API 版本）。
+- [x] token `kid` key rotation support（token `kid` 密钥轮换支持）：服务端签发 token 已带 `kid`。
+- [x] Stripe API version is pinned in SDK initialization（Stripe SDK 初始化时固定 API 版本）。
 - [ ] Caddy / trusted proxy IP handling can be configured safely（Caddy 和可信反代 IP 可安全配置）。
 
 ### Client Unit Tests（客户端单元测试）
 
-- [ ] entitlement status parsing（授权状态解析）。
-- [ ] token expiry handling（token 过期处理）。
-- [ ] emergency grace calculation（服务端故障时的紧急宽限期计算）。
+- [x] entitlement status parsing（授权状态解析）。
+- [x] token expiry handling（token 过期处理）。
+- [x] emergency grace calculation（服务端故障时的紧急宽限期计算）。
 - [x] quota error mapping（免费额度错误码映射）：客户端保留服务端 JSON 错误体，UI 可解析 `code`。
-- [ ] download state to quota confirm/release mapping（下载状态到额度 confirm/release 的映射）：逻辑已接入，待补单测。
+- [x] download state to quota confirm/release mapping（下载状态到额度 confirm/release 的映射）。
 
 ### Integration Tests（集成测试）
 
@@ -757,5 +757,5 @@ Reasoning:
 - [x] 服务端私仓已创建并记录方案：`Pro_sub.md`。
 - [x] 客户端开发计划已创建：`Pro_sub_plan.md`。
 - [x] 服务端项目骨架已初始化。
-- [ ] 客户端授权代码尚未实现。
-- [ ] Stripe test mode 尚未接入。
+- [x] 客户端授权代码已实现。
+- [x] Stripe test mode 已接入服务端 Checkout / webhook 履约代码，待真实 Stripe 控制台联调。

@@ -847,6 +847,22 @@ fn is_terminal_state(state: &JobState) -> bool {
     )
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum QuotaSettlementAction {
+    Confirm,
+    Release,
+}
+
+fn quota_settlement_action(state: &JobState) -> Option<QuotaSettlementAction> {
+    match state {
+        JobState::Done => Some(QuotaSettlementAction::Confirm),
+        JobState::Failed | JobState::Canceled | JobState::Skipped => {
+            Some(QuotaSettlementAction::Release)
+        }
+        JobState::Pending | JobState::Running => None,
+    }
+}
+
 fn spawn_quota_settlement(
     inner: Arc<Inner>,
     app: AppHandle,
@@ -856,12 +872,14 @@ fn spawn_quota_settlement(
 ) {
     tauri::async_runtime::spawn(async move {
         let entitlement = app.state::<EntitlementStore>();
-        let result = match terminal_state {
-            JobState::Done => entitlement.confirm_free_quota(reservation_id.clone()).await,
-            JobState::Failed | JobState::Canceled | JobState::Skipped => {
+        let result = match quota_settlement_action(&terminal_state) {
+            Some(QuotaSettlementAction::Confirm) => {
+                entitlement.confirm_free_quota(reservation_id.clone()).await
+            }
+            Some(QuotaSettlementAction::Release) => {
                 entitlement.release_free_quota(reservation_id.clone()).await
             }
-            JobState::Pending | JobState::Running => return,
+            None => return,
         };
 
         match result {
@@ -1286,4 +1304,35 @@ fn now_ms() -> i64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn terminal_states_map_to_quota_settlement_actions() {
+        assert_eq!(
+            quota_settlement_action(&JobState::Done),
+            Some(QuotaSettlementAction::Confirm)
+        );
+        assert_eq!(
+            quota_settlement_action(&JobState::Failed),
+            Some(QuotaSettlementAction::Release)
+        );
+        assert_eq!(
+            quota_settlement_action(&JobState::Canceled),
+            Some(QuotaSettlementAction::Release)
+        );
+        assert_eq!(
+            quota_settlement_action(&JobState::Skipped),
+            Some(QuotaSettlementAction::Release)
+        );
+    }
+
+    #[test]
+    fn non_terminal_states_do_not_settle_quota() {
+        assert_eq!(quota_settlement_action(&JobState::Pending), None);
+        assert_eq!(quota_settlement_action(&JobState::Running), None);
+    }
 }
