@@ -454,15 +454,15 @@ IPC：
 - [ ] 部署 production License Server 到 VPS。
 - [ ] 配置 production PostgreSQL。
 - [ ] 配置 Caddy 反向代理和 HTTPS 自动续期。
-- [ ] 配置 Caddy 真实 IP 转发，并验证应用层限流读取到客户端 IP。
+- [x] 配置 Caddy 真实 IP 转发，并验证应用层限流读取到客户端 IP。
 - [ ] 配置 Stripe live webhook。
 - [ ] 配置 Resend production sender domain。
 - [ ] 配置 `ytbdown@litotime.com` 发信域名验证和收信转发。
-- [ ] 配置日志、错误监控和数据库备份。
-- [ ] 配置防火墙，仅开放 80、443、SSH。
+- [ ] 配置日志、错误监控和数据库备份。（已补 Docker 日志轮转和 PostgreSQL 备份脚本；错误监控待接入。）
+- [ ] 配置防火墙，仅开放 80、443、SSH。（已补部署文档，VPS 实机配置待执行。）
 - [ ] 配置 PostgreSQL 自动备份和一次恢复演练。
-- [ ] 配置日志轮转，避免磁盘被日志打满。
-- [ ] 配置 `/healthz` 监控。
+- [x] 配置日志轮转，避免磁盘被日志打满。
+- [x] 配置 `/healthz` 监控。
 - [ ] 生成 production Ed25519 key pair。
 - [ ] 私钥只进服务端环境变量或 secret manager。
 
