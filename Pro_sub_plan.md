@@ -476,7 +476,7 @@ IPC：
 - [ ] 切换 production License Server URL。
 - [ ] 内置 production 公钥。
 - [ ] 保持现有 Tauri `productName` / `identifier`，不另做 Pro 独立安装包。
-- [ ] 购买 / 激活 UI 中提供隐私政策和支持邮箱入口。
+- [x] 购买 / 激活 UI 中提供隐私政策和支持邮箱入口。
 - [ ] 更新版本号和 release notes。
 - [ ] 构建 macOS / Windows 包。
 
@@ -663,11 +663,12 @@ TERMS_URL=
 - [ ] Reinstall or delete `$APP_DATA` does not change secure-storage id（重装或删除 `$APP_DATA` 不改变系统安全存储里的 ID）。
 - [ ] Keychain/Credential Manager unavailable fallback is visible in logs/status（Keychain/Credential Manager 不可用时，fallback 状态能在日志或状态里看到）。
 - [ ] Purchase button opens Checkout（购买按钮能打开 Stripe Checkout）。
-- [ ] Stripe success page and cancel page are readable（Stripe 成功页和取消页可读）。
+- [x] Stripe success page and cancel page are readable（Stripe 成功页和取消页可读）。
 - [ ] License email content is readable（license 邮件内容可读）。
 - [ ] Settings Pro panel states are clear（设置页 Pro 面板状态清晰）。
 - [ ] Download page quota display updates after success/cancel/failure（下载成功、取消、失败后，下载页额度显示正确更新）。
-- [ ] Privacy/support links open correctly（隐私政策和支持入口能正确打开）。
+- [x] Privacy/support links open correctly（隐私政策和支持入口能正确打开）。
+  - 服务端 `pnpm smoke:local` 已验证 `/billing/success`、`/billing/cancel`、`/privacy`、`/terms`、`/support` 及 `/v1/support/contact` 链接可读；客户端设置页已展示支持邮箱和隐私 / 条款 / 支持入口。
 
 ## 8. Rollout Checklist（上线检查清单）
 
@@ -679,7 +680,7 @@ TERMS_URL=
 - [ ] Stripe test webhook configured（已配置 Stripe 测试 webhook）。
 - [ ] Email provider test sender verified（邮件服务测试发件人已验证）。
 - [ ] `ytbdown@litotime.com` send domain and receive forwarding verified（`ytbdown@litotime.com` 发信域名和收信转发已验证）。
-- [ ] Minimal privacy/terms pages published or hosted by License Server（最小隐私政策和服务条款页面已发布，或由 License Server 托管）。
+- [x] Minimal privacy/terms pages published or hosted by License Server（最小隐私政策和服务条款页面已发布，或由 License Server 托管）。
 - [ ] Staging License Server deployed（staging 授权服务端已部署）。
 - [ ] Client staging build points to staging server（客户端 staging 构建指向 staging 服务端）。
 - [ ] End-to-end test purchase succeeds（端到端测试购买成功）。
