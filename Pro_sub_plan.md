@@ -432,7 +432,8 @@ IPC：
 
 联调路径：
 
-- [ ] 启动本地 License Server。
+- [x] 启动本地 License Server。
+  - 已构建服务端并运行 `pnpm start`，`GET http://127.0.0.1:3000/healthz` 返回 `{"status":"ok","environment":"development"}`。
 - [ ] 配置 Stripe test mode webhook。
 - [ ] 客户端配置 staging License Server URL 和公钥。
 - [ ] 在客户端点击购买 Pro。
