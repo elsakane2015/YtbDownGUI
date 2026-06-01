@@ -11,7 +11,7 @@ const SERVICE_NAME: &str = "YtbDownGUI";
 const DEVICE_ID_KEY: &str = "device_id";
 const INSTALLATION_ID_KEY: &str = "installation_id";
 const TOKEN_ISSUER: &str = "ytbdown-license-server";
-const TOKEN_AUDIENCE: &str = "ytbdown-client";
+const TOKEN_AUDIENCE: &str = "ytbdown-app";
 const EMERGENCY_GRACE_SECONDS: u64 = 24 * 60 * 60;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
