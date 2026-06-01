@@ -4,9 +4,12 @@
 # - Marketing version comes from tauri.conf.json's `version`.
 # - Build number lives in `.buildnumber` at the repo root and is
 #   auto-incremented every time this script runs (kept 3-digit-zero-padded).
+# - `main`/free releases keep the historical `v<ver>-b<build>` tag.
+# - `pro-dev` releases use `pro-v<ver>-b<build>` and show "Pro" before
+#   the version in release artifacts and the app footer.
 # - Post-build: patches CFBundleVersion in the .app's Info.plist, re-signs,
 #   then rebuilds the DMG (with an Applications shortcut for drag-install).
-# - Each run lands in its own folder under `releases/v<ver>-b<build>/` so
+# - Each run lands in its own folder under `releases/<tag>/` so
 #   older builds aren't overwritten.
 # - Automatically commits .buildnumber, creates a GitHub Release (tag +
 #   release page + macOS DMG upload) via `gh`, then pushes — so the
@@ -20,12 +23,39 @@
 #   bash scripts/release.sh
 #
 # Output:
-#   releases/v<version>-b<build>/YtbDownGUI_<version>_b<build>_universal.dmg
+#   Free: releases/v<version>-b<build>/YtbDownGUI_<version>_b<build>_universal.dmg
+#   Pro : releases/pro-v<version>-b<build>/YtbDownGUI_Pro_<version>_b<build>_universal.dmg
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
+
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+RELEASE_CHANNEL="${RELEASE_CHANNEL:-auto}"
+if [[ "${RELEASE_CHANNEL}" == "auto" ]]; then
+  if [[ "${CURRENT_BRANCH}" == "pro-dev" ]]; then
+    RELEASE_CHANNEL="pro"
+  else
+    RELEASE_CHANNEL="free"
+  fi
+fi
+if [[ "${RELEASE_CHANNEL}" != "free" && "${RELEASE_CHANNEL}" != "pro" ]]; then
+  echo "ERROR: RELEASE_CHANNEL must be free, pro, or auto"
+  exit 1
+fi
+
+if [[ "${RELEASE_CHANNEL}" == "pro" ]]; then
+  CHANNEL_LABEL="Pro"
+  TAG_PREFIX="pro-v"
+  ARTIFACT_PREFIX="YtbDownGUI_Pro"
+else
+  CHANNEL_LABEL=""
+  TAG_PREFIX="v"
+  ARTIFACT_PREFIX="YtbDownGUI"
+fi
+export YTBDOWN_RELEASE_CHANNEL="${RELEASE_CHANNEL}"
+export YTBDOWN_BUILD_CHANNEL_LABEL="${CHANNEL_LABEL}"
 
 # Validate release-only requirements before mutating .buildnumber.
 pnpm preflight:release
@@ -40,7 +70,8 @@ echo "${BUILD_STR}" > "${BUILD_FILE}"
 
 # --- read marketing version from tauri.conf.json -------------------------
 VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
-echo "Building YtbDownGUI v${VERSION} (Build ${BUILD_STR})…"
+VERSION_LABEL="${CHANNEL_LABEL:+${CHANNEL_LABEL} }v${VERSION}"
+echo "Building YtbDownGUI ${VERSION_LABEL} (Build ${BUILD_STR})…"
 
 # --- run tauri build ------------------------------------------------------
 pnpm tauri build --target universal-apple-darwin
@@ -62,9 +93,10 @@ codesign --force --deep --sign - "${APP}"
 echo "Re-signed ad-hoc"
 
 # --- archive folder for this release --------------------------------------
-RELEASE_DIR="${REPO_ROOT}/releases/v${VERSION}-b${BUILD_STR}"
+TAG="${TAG_PREFIX}${VERSION}-b${BUILD_STR}"
+RELEASE_DIR="${REPO_ROOT}/releases/${TAG}"
 mkdir -p "${RELEASE_DIR}"
-DMG_FINAL="${RELEASE_DIR}/YtbDownGUI_${VERSION}_b${BUILD_STR}_universal.dmg"
+DMG_FINAL="${RELEASE_DIR}/${ARTIFACT_PREFIX}_${VERSION}_b${BUILD_STR}_universal.dmg"
 rm -f "${DMG_FINAL}"
 
 # --- stage the DMG contents with /Applications symlink so the drag-install
@@ -76,7 +108,7 @@ ditto "${APP}" "${STAGE}/YtbDownGUI.app"
 ln -s /Applications "${STAGE}/Applications"
 
 hdiutil create \
-  -volname "YtbDownGUI ${VERSION}" \
+  -volname "YtbDownGUI ${VERSION_LABEL}" \
   -srcfolder "${STAGE}" \
   -ov \
   -format UDZO \
@@ -92,7 +124,6 @@ ditto "${APP}" "${RELEASE_DIR}/YtbDownGUI.app" 2>/dev/null || true
 # canonical artifact is the one under releases/.
 
 # --- commit .buildnumber + push -------------------------------------------
-TAG="v${VERSION}-b${BUILD_STR}"
 git add "${BUILD_FILE}"
 git commit -m "chore: bump build number to ${BUILD_STR}"
 git push
@@ -116,7 +147,7 @@ Windows 版正在构建中，稍后自动附到此 Release。
 
 gh release create "${TAG}" \
   "${DMG_FINAL}" \
-  --title "v${VERSION} (Build ${BUILD_STR})" \
+  --title "${VERSION_LABEL} (Build ${BUILD_STR})" \
   --notes "${RELEASE_NOTES}"
 echo "GitHub Release created: ${TAG}"
 
@@ -127,7 +158,7 @@ echo "Local tags synced"
 # --- summary --------------------------------------------------------------
 echo
 echo "==========================================="
-echo "  YtbDownGUI v${VERSION} (Build ${BUILD_STR})"
+echo "  YtbDownGUI ${VERSION_LABEL} (Build ${BUILD_STR})"
 echo "==========================================="
 echo "  .app : ${RELEASE_DIR}/YtbDownGUI.app"
 echo "  .dmg : ${DMG_FINAL}"

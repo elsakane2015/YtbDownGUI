@@ -105,6 +105,7 @@ pnpm tauri dev
 # patches CFBundleVersion, re-signs ad-hoc, commits + pushes, creates
 # the GitHub Release (with DMG), and triggers the Windows Actions build.
 # Requires gh CLI to be installed/authenticated and production YTBDOWN_LICENSE_PUBLIC_KEY exported.
+# main keeps v<version>-b<build>; pro-dev uses pro-v<version>-b<build>.
 pnpm preflight:release
 bash scripts/release.sh
 

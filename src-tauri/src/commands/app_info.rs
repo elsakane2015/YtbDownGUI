@@ -6,6 +6,7 @@ use serde::Serialize;
 pub struct AppVersion {
     pub version: String,
     pub build: String,
+    pub channel: String,
     /// "macos" / "windows" / "linux". Front-end uses this to gate
     /// platform-specific UI bits (traffic-light spacing, native vs
     /// custom title bar, etc.).
@@ -17,6 +18,7 @@ pub fn app_version() -> AppVersion {
     AppVersion {
         version: env!("CARGO_PKG_VERSION").to_string(),
         build: env!("APP_BUILD_NUMBER").to_string(),
+        channel: env!("APP_BUILD_CHANNEL").to_string(),
         platform: std::env::consts::OS.to_string(),
     }
 }

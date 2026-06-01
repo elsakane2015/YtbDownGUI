@@ -5,16 +5,18 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to attach the zip to (e.g. v0.0.1-b005). Leave empty to just publish an artifact."
+        description: "Existing tag to attach the zip to (e.g. v1.0.1-b022 or pro-v1.0.1-b022). Leave empty to just publish an artifact."
         required: false
         default: ""
 
-  # Auto-build whenever a release tag is pushed (e.g. `v0.0.1-b005`). The
-  # resulting zip is uploaded as a workflow artifact AND attached to the
+  # Auto-build whenever a release tag is pushed. Free/main releases use
+  # `v<version>-b<build>`; Pro releases use `pro-v<version>-b<build>`.
+  # The resulting zip is uploaded as a workflow artifact AND attached to the
   # matching GitHub Release if one exists.
   push:
     tags:
       - "v*-b*"
+      - "pro-v*-b*"
 
 jobs:
   build:
@@ -34,9 +36,18 @@ jobs:
           $cfg = Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json
           $version = $cfg.version
           $build = (Get-Content .buildnumber).Trim()
+          $inputTag = "${{ inputs.tag }}"
+          $refName = "${{ github.ref_name }}"
+          $releaseRef = if ($inputTag) { $inputTag } else { $refName }
+          $channel = if ($releaseRef.StartsWith("pro-v") -or $refName -eq "pro-dev") { "pro" } else { "free" }
+          $channelLabel = if ($channel -eq "pro") { "Pro" } else { "" }
+          $artifactPrefix = if ($channel -eq "pro") { "YtbDownGUI-Pro" } else { "YtbDownGUI" }
           "version=$version" | Out-File -Append $env:GITHUB_OUTPUT
           "build=$build"     | Out-File -Append $env:GITHUB_OUTPUT
-          Write-Host "version=$version  build=$build"
+          "channel=$channel" | Out-File -Append $env:GITHUB_OUTPUT
+          "channel_label=$channelLabel" | Out-File -Append $env:GITHUB_OUTPUT
+          "artifact_prefix=$artifactPrefix" | Out-File -Append $env:GITHUB_OUTPUT
+          Write-Host "version=$version  build=$build  channel=$channel"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -65,6 +76,7 @@ jobs:
         env:
           YTBDOWN_LICENSE_SERVER_URL: https://license.ytbdown.litotime.com
           YTBDOWN_LICENSE_PUBLIC_KEY: ${{ secrets.YTBDOWN_LICENSE_PUBLIC_KEY }}
+          YTBDOWN_RELEASE_CHANNEL: ${{ steps.ver.outputs.channel }}
         run: pnpm preflight:release
 
       - name: Cache cargo registry + target
@@ -76,6 +88,10 @@ jobs:
         # `--no-bundle` skips MSI/NSIS generation; on Windows that gives us
         # just the .exe + DLLs in target/<triple>/release/. We assemble the
         # portable zip in the next step. (`--bundles app` is macOS-only.)
+        env:
+          YTBDOWN_BUILD_CHANNEL_LABEL: ${{ steps.ver.outputs.channel_label }}
+          YTBDOWN_LICENSE_SERVER_URL: https://license.ytbdown.litotime.com
+          YTBDOWN_LICENSE_PUBLIC_KEY: ${{ secrets.YTBDOWN_LICENSE_PUBLIC_KEY }}
         run: pnpm tauri build --target x86_64-pc-windows-msvc --no-bundle
 
       - name: Stage portable bundle
@@ -84,6 +100,8 @@ jobs:
         run: |
           $version = "${{ steps.ver.outputs.version }}"
           $build = "${{ steps.ver.outputs.build }}"
+          $channelLabel = "${{ steps.ver.outputs.channel_label }}"
+          $artifactPrefix = "${{ steps.ver.outputs.artifact_prefix }}"
           $stage = "stage/YtbDownGUI"
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
 
@@ -117,7 +135,7 @@ jobs:
               Out-File -Encoding utf8 "$stage/portable.txt"
           # Short readme
           @"
-          YtbDownGUI v$version (Build $build) · Windows Portable
+          YtbDownGUI $(if ($channelLabel) { "$channelLabel " })v$version (Build $build) · Windows Portable
 
           1. 解压后直接双击 YtbDownGUI.exe 运行。
           2. 首次启动如 Windows SmartScreen 拦截，点 "更多信息" → "仍要运行"。
@@ -131,7 +149,7 @@ jobs:
           "@ | Out-File -Encoding utf8 "$stage/README.txt"
 
           # Zip it
-          $zipName = "YtbDownGUI-$version-b$build-windows-x64.zip"
+          $zipName = "$artifactPrefix-$version-b$build-windows-x64.zip"
           Push-Location stage
           Compress-Archive -Path YtbDownGUI -DestinationPath ../$zipName -Force
           Pop-Location

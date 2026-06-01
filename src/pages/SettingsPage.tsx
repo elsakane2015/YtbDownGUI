@@ -543,7 +543,9 @@ export default function SettingsPage() {
       <footer className="app-version-footer">
         <div>
           YtbDownGUI
-          {version ? ` · v${version.version} (${version.build})` : ""}
+          {version
+            ? ` · ${version.channel ? `${version.channel} ` : ""}v${version.version} (${version.build})`
+            : ""}
         </div>
         <div className="footer-links">
           <a

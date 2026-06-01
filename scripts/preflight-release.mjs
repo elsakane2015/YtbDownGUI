@@ -9,6 +9,7 @@ import { cwd, env, exit, platform } from "node:process";
 const EXPECTED_PRODUCT_NAME = "YtbDownGUI";
 const EXPECTED_IDENTIFIER = "com.litotime.ytbdowngui";
 const PRODUCTION_LICENSE_URL = "https://license.ytbdown.litotime.com";
+const PRO_MIN_VERSION = "1.0.1";
 
 const args = new Set(process.argv.slice(2));
 const allowDirty = args.has("--allow-dirty");
@@ -18,6 +19,16 @@ const root = cwd();
 const errors = [];
 const warnings = [];
 const checks = [];
+
+function compareSemver(left, right) {
+  const leftParts = left.split(".").map(Number);
+  const rightParts = right.split(".").map(Number);
+  for (let index = 0; index < 3; index += 1) {
+    const diff = (leftParts[index] || 0) - (rightParts[index] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
 
 function readJson(path) {
   return JSON.parse(readFileSync(join(root, path), "utf8"));
@@ -41,6 +52,23 @@ function addCheck(message) {
 
 function normalizePem(value) {
   return value.replace(/\\n/g, "\n").trim();
+}
+
+function currentGitBranch() {
+  try {
+    return execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+      cwd: root,
+      encoding: "utf8",
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
+function releaseChannel() {
+  const configured = (env.YTBDOWN_RELEASE_CHANNEL || "").trim().toLowerCase();
+  if (configured) return configured;
+  return currentGitBranch() === "pro-dev" ? "pro" : "free";
 }
 
 function validateGitClean() {
@@ -88,6 +116,16 @@ function validateVersions() {
     );
   } else {
     addCheck(`App version is consistent at ${versions[0]}`);
+  }
+
+  const channel = releaseChannel();
+  if (!["free", "pro"].includes(channel)) {
+    addError("release_channel", "YTBDOWN_RELEASE_CHANNEL must be free or pro.");
+  } else {
+    addCheck(`Release channel is ${channel}`);
+  }
+  if (channel === "pro" && compareSemver(packageJson.version, PRO_MIN_VERSION) < 0) {
+    addError("pro_version", `Pro releases must start at v${PRO_MIN_VERSION}.`);
   }
 
   if (!/^\d{3,}$/.test(buildNumber)) {

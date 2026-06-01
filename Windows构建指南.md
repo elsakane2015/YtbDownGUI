@@ -38,6 +38,8 @@
 
 > Windows release workflow 会先跑 `pnpm preflight:release`。GitHub 仓库必须配置
 > `YTBDOWN_LICENSE_PUBLIC_KEY` secret，值来自生产 License Server 的 `TOKEN_PUBLIC_KEY`。
+> `main` 构建保持 `v<版本>-b<build>`，`pro-dev` / `pro-v*` 构建会在 zip、Release
+> 和 App 设置页版本号前显示 `Pro`。
 
 **用命令行：**
 ```bash
@@ -70,13 +72,14 @@ gh run download <run-id> -n "YtbDownGUI-0.0.1-b005-windows-x64.zip"
 跟 macOS 的发布流程一致 —— 推一个形如 `v*-b*` 的 tag，workflow 自动构建并 **直接挂到对应的 GitHub Release**：
 
 ```bash
-# 1. 先导出生产验签公钥，并跑发布前校验
+# 1. 先导出生产验签公钥，并跑发布前校验。
+#    当前分支是 pro-dev 时会按 Pro release 校验。
 export YTBDOWN_LICENSE_PUBLIC_KEY="$(cat /path/to/token-public-key.pem)"
 pnpm preflight:release
 
 # 2. 本地用 release.sh 跑 macOS 打包。
 #    这一步会自动 .buildnumber +1、commit + push、创建 GitHub Release，
-#    并触发 Windows workflow。
+#    并触发 Windows workflow。pro-dev 会创建 pro-v1.0.1-bXXX。
 bash scripts/release.sh
 # 假设这次出了 b005
 

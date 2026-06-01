@@ -375,6 +375,7 @@ export const onYtdlpUpdateInstalled = (
 export type AppVersion = {
   version: string;
   build: string;
+  channel: string;
   platform: string; // "macos" | "windows" | "linux"
 };
 

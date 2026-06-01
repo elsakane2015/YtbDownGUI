@@ -487,8 +487,11 @@ IPC：
   - 已补客户端 `pnpm preflight:release` 校验 `YTBDOWN_LICENSE_PUBLIC_KEY` 是有效 Ed25519 SPKI 公钥；真实生产公钥待生成后写入 CI / shell。
 - [ ] 保持现有 Tauri `productName` / `identifier`，不另做 Pro 独立安装包。
   - 已补客户端 `pnpm preflight:release` 校验 `productName=YtbDownGUI` 和 `identifier=com.litotime.ytbdowngui`。
+- [x] Pro 构建可在版本号前显示 `Pro`，且不影响 main/free 构建。
+  - `pro-dev` release 默认生成 `pro-v1.0.1-bXXX`，App 设置页显示 `Pro v1.0.1 (XXX)`；`main` release 保持 `vX.Y.Z-bXXX`。
 - [x] 购买 / 激活 UI 中提供隐私政策和支持邮箱入口。
 - [ ] 更新版本号和 release notes。
+  - `pro-dev` 版本已从 `1.0.1` 起步；`.buildnumber` 不手动跳号，下一次 release 会从当前 `021` 自动递增到 `022`。
 - [ ] 构建 macOS / Windows 包。
 
 验收：
@@ -781,3 +784,4 @@ Reasoning:
 - [x] Stripe test mode 已接入服务端 Checkout / webhook 履约代码，待真实 Stripe 控制台联调。
 - [x] 服务端已补生产密钥生成和部署前 preflight 校验脚本，待真实生产环境执行。
 - [x] 客户端已补发布前 preflight 校验，并接入 macOS release 脚本和 Windows release workflow。
+- [x] Pro 客户端版本号已调整为 `1.0.1`，release 构建会从当前 `.buildnumber=021` 自动递增到 `022`。

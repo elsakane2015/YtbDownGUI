@@ -10,6 +10,14 @@ fn main() {
     println!("cargo:rustc-env=APP_BUILD_NUMBER={build_number}");
     println!("cargo:rerun-if-changed=../.buildnumber");
 
+    let build_channel = std::env::var("YTBDOWN_BUILD_CHANNEL_LABEL")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(infer_git_build_channel)
+        .unwrap_or_default();
+    println!("cargo:rustc-env=APP_BUILD_CHANNEL={build_channel}");
+    println!("cargo:rerun-if-env-changed=YTBDOWN_BUILD_CHANNEL_LABEL");
+
     let license_server_url = std::env::var("YTBDOWN_LICENSE_SERVER_URL")
         .ok()
         .filter(|s| !s.trim().is_empty())
@@ -28,4 +36,20 @@ fn main() {
     println!("cargo:rerun-if-env-changed=YTBDOWN_LICENSE_PUBLIC_KEY");
 
     tauri_build::build()
+}
+
+fn infer_git_build_channel() -> Option<String> {
+    let output = std::process::Command::new("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let branch = String::from_utf8_lossy(&output.stdout);
+    if branch.trim() == "pro-dev" {
+        Some("Pro".to_string())
+    } else {
+        None
+    }
 }

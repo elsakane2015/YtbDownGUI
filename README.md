@@ -104,6 +104,7 @@ pnpm tauri dev
 # 修补 CFBundleVersion，ad-hoc 重签名，commit + push，
 # 创建 GitHub Release（含 DMG），触发 Windows GitHub Actions 构建。
 # 需要 gh CLI 已登录，并且已导出生产 YTBDOWN_LICENSE_PUBLIC_KEY。
+# main 分支保持 v<版本>-b<build>；pro-dev 分支使用 pro-v<版本>-b<build>。
 pnpm preflight:release
 bash scripts/release.sh
 
