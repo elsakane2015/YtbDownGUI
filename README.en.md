@@ -67,6 +67,22 @@ The `.mp4` (or whatever container you picked) lands in your download folder. Eac
 
 ## Build from source
 
+### Pro entitlement environment variables
+
+The client only embeds the License Server URL and the public key used to verify
+signed entitlement tokens. Payment, email, admin, and signing private keys stay
+on the server.
+
+```bash
+export YTBDOWN_LICENSE_SERVER_URL=http://127.0.0.1:3000
+export YTBDOWN_LICENSE_PUBLIC_KEY="$(cat /path/to/token-public-key.pem)"
+pnpm tauri dev
+```
+
+- `YTBDOWN_LICENSE_SERVER_URL`: optional; defaults to `https://license.ytbdown.litotime.com`.
+- `YTBDOWN_LICENSE_PUBLIC_KEY`: required for production Tauri builds; development builds may leave it empty, but Pro tokens cannot be verified.
+- `.env.example` is a placeholder reference only. Tauri / Cargo does not auto-load it, so export values in your shell, CI job, or release script.
+
 ### macOS
 
 ```bash

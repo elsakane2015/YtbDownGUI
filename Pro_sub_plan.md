@@ -108,7 +108,10 @@
 
 - [x] 在 `Pro_sub_plan.md` 留存计划。
 - [x] 继续在 `pro-dev` 分支开发。
-- [ ] 增加后续所需环境变量设计，但不接入真实服务端前不写死生产 URL。
+- [x] 增加后续所需环境变量设计。
+  - 客户端构建时读取 `YTBDOWN_LICENSE_SERVER_URL`，local / staging 可显式覆盖；默认值按第 10 节最终决策指向 `https://license.ytbdown.litotime.com`。
+  - 客户端构建时读取 `YTBDOWN_LICENSE_PUBLIC_KEY`，production Tauri 构建要求提供；dev 可留空但不能验证 Pro token。
+  - 仓库保留 `.env.example` 占位说明，不提交真实公钥或服务端密钥。
 - [x] 确认免费版和 Pro 不拆成两个 App，不修改现有 Tauri `identifier`。
 
 验收：
@@ -293,8 +296,10 @@ Stripe events（需要处理的 Stripe 事件）：
 验收：
 
 - [x] 新 `installation_id` 剩余额度为 10。
-- [ ] 首次启动且没有本地额度缓存时，必须联网初始化免费额度。
-- [ ] 首次启动且服务端不可用时，免费下载被拒绝并显示需要联网同步。
+- [x] 首次启动且没有本地额度缓存时，必须联网初始化免费额度。
+  - 客户端启动后下载页挂载会调用 `sync_free_quota_status`；实际入队仍由 Rust 后端 `reserve_free_quota` 强制联网预留。
+- [x] 首次启动且服务端不可用时，免费下载被拒绝并显示需要联网同步。
+  - 授权网络错误统一映射为 `server_unreachable`，下载页显示“首次免费额度同步需要联网”提示。
 - [x] 成功 confirm 10 次后，第 11 次 reserve 被拒绝。
 - [x] 失败或取消 release 后额度恢复。
 - [x] 过期 reservation 可被后台任务清理。

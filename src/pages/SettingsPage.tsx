@@ -605,6 +605,9 @@ function formatProError(error: unknown) {
       if (parsed.code === "license_resend_rate_limited") {
         return "找回邮件请求过于频繁，请稍后再试";
       }
+      if (parsed.code === "server_unreachable") {
+        return "无法连接授权服务，请检查网络后重试";
+      }
       if (parsed.message) return parsed.message;
     } catch {
       // Fall through to plain text.

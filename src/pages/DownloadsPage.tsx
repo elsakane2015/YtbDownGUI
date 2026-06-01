@@ -1561,6 +1561,9 @@ function formatDownloadError(error: unknown) {
       if (parsed.code === "quota_exceeded") {
         return "免费版最多可下载 10 个视频，激活 Pro 后可解除限制。";
       }
+      if (parsed.code === "server_unreachable") {
+        return "无法连接授权服务。首次免费额度同步需要联网，或激活 Pro 后继续使用。";
+      }
       if (parsed.message) return parsed.message;
     } catch {
       // Fall through to plain text.

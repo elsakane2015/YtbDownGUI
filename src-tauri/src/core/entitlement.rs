@@ -329,12 +329,8 @@ impl EntitlementStore {
             .json(&request)
             .send()
             .await
-            .map_err(http_error)?
-            .error_for_status()
-            .map_err(status_error)?
-            .json::<ServerActivateResponse>()
-            .await
             .map_err(http_error)?;
+        let response = json_or_status::<ServerActivateResponse>(response).await?;
 
         match response {
             ServerActivateResponse::Activated { status } => {
@@ -374,12 +370,7 @@ impl EntitlementStore {
             .send()
             .await
         {
-            Ok(response) => response
-                .error_for_status()
-                .map_err(status_error)?
-                .json::<ServerLicenseStatus>()
-                .await
-                .map_err(http_error),
+            Ok(response) => json_or_status::<ServerLicenseStatus>(response).await,
             Err(error) => Err(http_error(error)),
         };
         let status = match refresh_result {
@@ -416,7 +407,7 @@ impl EntitlementStore {
                 .await
                 .map_err(http_error)?;
             if response.status() != StatusCode::NOT_FOUND {
-                response.error_for_status().map_err(status_error)?;
+                ok_or_status(response).await?;
             }
         }
 
@@ -443,12 +434,8 @@ impl EntitlementStore {
             .json(&request)
             .send()
             .await
-            .map_err(http_error)?
-            .error_for_status()
-            .map_err(status_error)?
-            .json::<ServerTransferCodeResponse>()
-            .await
             .map_err(http_error)?;
+        let response = json_or_status::<ServerTransferCodeResponse>(response).await?;
         Ok(TransferCodeStatus {
             sent: response.sent,
             email_hint: response.email_hint,
@@ -477,12 +464,8 @@ impl EntitlementStore {
             .json(&request)
             .send()
             .await
-            .map_err(http_error)?
-            .error_for_status()
-            .map_err(status_error)?
-            .json::<ServerActivateResponse>()
-            .await
             .map_err(http_error)?;
+        let response = json_or_status::<ServerActivateResponse>(response).await?;
 
         match response {
             ServerActivateResponse::Activated { status } => {
@@ -808,15 +791,14 @@ fn normalize_public_key(value: &str) -> String {
 }
 
 fn http_error(error: reqwest::Error) -> AppError {
-    AppError::Other(format!("license server request failed: {error}"))
-}
-
-fn status_error(error: reqwest::Error) -> AppError {
-    if let Some(status) = error.status() {
-        AppError::Other(format!("license server returned {status}"))
-    } else {
-        http_error(error)
-    }
+    AppError::Other(
+        serde_json::json!({
+            "code": "server_unreachable",
+            "message": "无法连接授权服务，请检查网络后重试。",
+            "details": error.to_string(),
+        })
+        .to_string(),
+    )
 }
 
 async fn json_or_status<T: DeserializeOwned>(response: reqwest::Response) -> AppResult<T> {
@@ -825,13 +807,24 @@ async fn json_or_status<T: DeserializeOwned>(response: reqwest::Response) -> App
         return response.json::<T>().await.map_err(http_error);
     }
 
+    Err(status_body_error(response, status).await)
+}
+
+async fn ok_or_status(response: reqwest::Response) -> AppResult<()> {
+    let status = response.status();
+    if status.is_success() {
+        return Ok(());
+    }
+
+    Err(status_body_error(response, status).await)
+}
+
+async fn status_body_error(response: reqwest::Response, status: StatusCode) -> AppError {
     let body = response
         .text()
         .await
         .unwrap_or_else(|_| String::from("<unreadable response body>"));
-    Err(AppError::Other(format!(
-        "license server returned {status}: {body}"
-    )))
+    AppError::Other(format!("license server returned {status}: {body}"))
 }
 
 fn now_seconds() -> u64 {
@@ -1054,6 +1047,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn activate_pro_error_preserves_server_body() {
+        let temp = tempfile::tempdir().unwrap();
+        let server = mock_json_server_with_status(
+            400,
+            r#"{"code":"license_invalid","message":"激活码无效或不存在"}"#.into(),
+        );
+        let store =
+            EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, &server.url).unwrap();
+
+        let error = store
+            .activate_pro("YTB-AAAA-BBBB-CCCC-DDDD".into())
+            .await
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("400"));
+        assert!(error.contains("license_invalid"));
+        assert!(error.contains("激活码无效或不存在"));
+    }
+
+    #[tokio::test]
     async fn refresh_pro_updates_stored_token() {
         let temp = tempfile::tempdir().unwrap();
         let mut store =
@@ -1251,6 +1265,19 @@ mod tests {
         assert!(error.contains("402"));
         assert!(error.contains("quota_exceeded"));
         assert!(error.contains("免费版最多可下载 10 个视频"));
+    }
+
+    #[tokio::test]
+    async fn reserve_free_quota_network_error_is_structured() {
+        let temp = tempfile::tempdir().unwrap();
+        let store =
+            EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, "http://127.0.0.1:9")
+                .unwrap();
+
+        let error = store.reserve_free_quota(1).await.unwrap_err().to_string();
+
+        assert!(error.contains("server_unreachable"));
+        assert!(error.contains("无法连接授权服务"));
     }
 
     #[tokio::test]

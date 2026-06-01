@@ -67,6 +67,21 @@
 
 ## 从源码构建
 
+### Pro 授权环境变量（开发 / 联调）
+
+客户端只内置 License Server URL 和 token 验签公钥，不保存支付、邮件或后台密钥。
+构建时可通过环境变量切换本地、staging 或 production 授权服务：
+
+```bash
+export YTBDOWN_LICENSE_SERVER_URL=http://127.0.0.1:3000
+export YTBDOWN_LICENSE_PUBLIC_KEY="$(cat /path/to/token-public-key.pem)"
+pnpm tauri dev
+```
+
+- `YTBDOWN_LICENSE_SERVER_URL`：可选；未设置时使用 `https://license.ytbdown.litotime.com`。
+- `YTBDOWN_LICENSE_PUBLIC_KEY`：production Tauri 构建必填；dev 可留空，但无法验证 Pro token。
+- `.env.example` 只记录占位示例，Tauri / Cargo 不会自动加载它；请在 shell、CI 或发布脚本里显式导出。
+
 ### macOS
 
 ```bash
