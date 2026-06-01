@@ -482,8 +482,11 @@ IPC：
 客户端：
 
 - [ ] 切换 production License Server URL。
+  - 已补客户端 `pnpm preflight:release`，发布前强制生产 License Server URL。
 - [ ] 内置 production 公钥。
+  - 已补客户端 `pnpm preflight:release` 校验 `YTBDOWN_LICENSE_PUBLIC_KEY` 是有效 Ed25519 SPKI 公钥；真实生产公钥待生成后写入 CI / shell。
 - [ ] 保持现有 Tauri `productName` / `identifier`，不另做 Pro 独立安装包。
+  - 已补客户端 `pnpm preflight:release` 校验 `productName=YtbDownGUI` 和 `identifier=com.litotime.ytbdowngui`。
 - [x] 购买 / 激活 UI 中提供隐私政策和支持邮箱入口。
 - [ ] 更新版本号和 release notes。
 - [ ] 构建 macOS / Windows 包。
@@ -777,3 +780,4 @@ Reasoning:
 - [x] 客户端授权代码已实现。
 - [x] Stripe test mode 已接入服务端 Checkout / webhook 履约代码，待真实 Stripe 控制台联调。
 - [x] 服务端已补生产密钥生成和部署前 preflight 校验脚本，待真实生产环境执行。
+- [x] 客户端已补发布前 preflight 校验，并接入 macOS release 脚本和 Windows release workflow。

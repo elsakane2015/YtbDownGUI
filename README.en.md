@@ -104,7 +104,8 @@ pnpm tauri dev
 # One-shot release: bumps .buildnumber, builds universal .app + .dmg,
 # patches CFBundleVersion, re-signs ad-hoc, commits + pushes, creates
 # the GitHub Release (with DMG), and triggers the Windows Actions build.
-# Requires gh CLI to be installed and authenticated.
+# Requires gh CLI to be installed/authenticated and production YTBDOWN_LICENSE_PUBLIC_KEY exported.
+pnpm preflight:release
 bash scripts/release.sh
 
 # (Plain `pnpm tauri build` also works; it just doesn't bump the build

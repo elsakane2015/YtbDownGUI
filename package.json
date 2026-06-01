@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "preflight:release": "node scripts/preflight-release.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
   },

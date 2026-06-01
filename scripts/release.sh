@@ -27,6 +27,9 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 
+# Validate release-only requirements before mutating .buildnumber.
+pnpm preflight:release
+
 # --- bump build number ----------------------------------------------------
 BUILD_FILE="${REPO_ROOT}/.buildnumber"
 PREV=$(cat "${BUILD_FILE}" 2>/dev/null | tr -d '[:space:]' || echo "0")

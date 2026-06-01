@@ -61,6 +61,12 @@ jobs:
         shell: pwsh
         run: pwsh scripts/fetch-binaries-windows.ps1
 
+      - name: Release preflight
+        env:
+          YTBDOWN_LICENSE_SERVER_URL: https://license.ytbdown.litotime.com
+          YTBDOWN_LICENSE_PUBLIC_KEY: ${{ secrets.YTBDOWN_LICENSE_PUBLIC_KEY }}
+        run: pnpm preflight:release
+
       - name: Cache cargo registry + target
         uses: Swatinem/rust-cache@v2
         with:

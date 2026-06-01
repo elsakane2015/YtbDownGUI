@@ -36,6 +36,9 @@
 5. **Tag** 输入框：留空（不会上传到任何 Release，只生成 artifact 给你下载）
 6. 点绿色的 **Run workflow** 按钮
 
+> Windows release workflow 会先跑 `pnpm preflight:release`。GitHub 仓库必须配置
+> `YTBDOWN_LICENSE_PUBLIC_KEY` secret，值来自生产 License Server 的 `TOKEN_PUBLIC_KEY`。
+
 **用命令行：**
 ```bash
 # 在仓库目录下
@@ -67,28 +70,21 @@ gh run download <run-id> -n "YtbDownGUI-0.0.1-b005-windows-x64.zip"
 跟 macOS 的发布流程一致 —— 推一个形如 `v*-b*` 的 tag，workflow 自动构建并 **直接挂到对应的 GitHub Release**：
 
 ```bash
-# 1. 本地先用 release.sh 跑 macOS 打包（这步会自动 .buildnumber +1）
+# 1. 先导出生产验签公钥，并跑发布前校验
+export YTBDOWN_LICENSE_PUBLIC_KEY="$(cat /path/to/token-public-key.pem)"
+pnpm preflight:release
+
+# 2. 本地用 release.sh 跑 macOS 打包。
+#    这一步会自动 .buildnumber +1、commit + push、创建 GitHub Release，
+#    并触发 Windows workflow。
 bash scripts/release.sh
 # 假设这次出了 b005
 
-# 2. 推 tag
-git tag v0.0.1-b005
-git push origin v0.0.1-b005
-
-# 3. 先创建 GitHub Release 把 macOS dmg 挂上去
-gh release create v0.0.1-b005 \
-  releases/v0.0.1-b005/YtbDownGUI_0.0.1_b005_universal.dmg \
-  --title "YtbDownGUI v0.0.1 (Build 005)" \
-  --notes "本次更新…"
-
-# 4. 此时 tag push 已经触发了 Windows workflow，它会自动构建并 attach zip
-#    到刚刚创建的 Release，无需你手动上传
+# 3. Windows workflow 会自动构建并 attach zip 到刚刚创建的 Release
 gh run watch    # 等 ~10 分钟
 ```
 
 完成后 GitHub Release 页面会同时有 `.dmg`（macOS）和 `.zip`（Windows）两个附件。
-
-> 注意：第 4 步 workflow 只会"上传到对应 tag 的 Release"，所以**必须先 create Release 再等 workflow 跑完**。或者反过来：先 push tag、等 workflow 跑、然后再 create Release（不过 workflow 会因为没找到 release 跳过 upload，需要手动 `gh release upload v0.0.1-b005 <zip>` 补一次）。
 
 ---
 

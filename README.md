@@ -103,7 +103,8 @@ pnpm tauri dev
 # 正式 release：自动 .buildnumber +1，构建 universal .app + .dmg，
 # 修补 CFBundleVersion，ad-hoc 重签名，commit + push，
 # 创建 GitHub Release（含 DMG），触发 Windows GitHub Actions 构建。
-# 需要 gh CLI 已登录。
+# 需要 gh CLI 已登录，并且已导出生产 YTBDOWN_LICENSE_PUBLIC_KEY。
+pnpm preflight:release
 bash scripts/release.sh
 
 # （也可以直接跑 pnpm tauri build；只是不会自增 build 号，DMG 也不会带 build 编号）
