@@ -205,7 +205,8 @@ Stripe events（需要处理的 Stripe 事件）：
 
 验收：
 
-- [ ] Stripe test mode 完成支付后，服务端创建 license。
+- [x] Stripe test mode 完成支付后，服务端创建 license。
+  - 服务端 `pnpm smoke:local` 已覆盖 Stripe 签名 webhook 创建 license、记录 `email_events`、同一 webhook 重放不重复创建 license。
 - [x] Stripe 成功页和取消页能正常打开。
 - [x] 成功页即使打开失败，也不影响 webhook 发码。
 - [x] 邮件发送成功并记录 `email_events`。
@@ -448,7 +449,8 @@ IPC：
 验收：
 
 - [ ] 端到端流程无需手工改 DB。
-- [ ] webhook 重放安全。
+- [x] webhook 重放安全。
+  - 服务端 `pnpm smoke:local` 已覆盖 Stripe webhook replay duplicate，不重复创建 license。
 - [ ] 断网时未过期 token 可用。
 - [ ] 设备满额自动迁移和验证码迁移均可验证。
 
