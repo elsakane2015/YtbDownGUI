@@ -652,8 +652,9 @@ TERMS_URL=
 - [x] activate 4th device with transfer code（第 4 台设备通过邮箱验证码激活）。
 - [x] free quota 10 successful downloads then reject（免费额度成功下载 10 次后拒绝第 11 次）。
   - 已增加服务端 `pnpm smoke:local`，使用本地 PostgreSQL 和 Fastify API 覆盖以上集成路径。
-- [ ] server unavailable with unexpired token（服务端不可用但 token 未过期）。
-- [ ] server unavailable with expired token and grace used（服务端不可用且 token 过期，使用 emergency grace）。
+- [x] server unavailable with unexpired token（服务端不可用但 token 未过期）。
+- [x] server unavailable with expired token and grace used（服务端不可用且 token 过期，使用 emergency grace）。
+  - 客户端 Rust 测试覆盖 refresh 失败时未过期 token 继续可用，以及过期 token 进入 24 小时 emergency grace。
 
 ### Manual QA（手工验收）
 

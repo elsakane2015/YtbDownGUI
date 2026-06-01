@@ -1109,6 +1109,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn refresh_failure_keeps_unexpired_token_active() {
+        let temp = tempfile::tempdir().unwrap();
+        let store =
+            EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, "http://127.0.0.1:9")
+                .unwrap();
+        let device_id = store.get_status().unwrap().device_id;
+        let token = test_token(&device_id, now_seconds() + 3600);
+        store
+            .apply_server_status(
+                ServerLicenseStatus {
+                    token: token.clone(),
+                    token_expires_at: "2099-01-01T00:00:00.000Z".into(),
+                    license_email: "buyer@example.com".into(),
+                    license_key_last4: "ABCD".into(),
+                },
+                &device_id,
+            )
+            .unwrap();
+
+        let status = store.refresh_pro().await.unwrap();
+
+        assert!(status.pro_active);
+        assert_eq!(status.signed_token.as_deref(), Some(token.as_str()));
+        assert_eq!(status.token_validation_error, None);
+        assert_eq!(status.emergency_grace_used_for_token, None);
+    }
+
+    #[tokio::test]
     async fn refresh_failure_enables_one_day_emergency_grace_for_expired_token() {
         let temp = tempfile::tempdir().unwrap();
         let store =
