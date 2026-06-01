@@ -665,7 +665,8 @@ TERMS_URL=
 - [ ] First launch creates stable device id（首次启动创建稳定的设备 ID）。
 - [ ] First launch without quota cache and without server rejects free download with a clear message（首次启动没有额度缓存且服务端不可用时，拒绝免费下载并显示清晰提示）。
 - [ ] Reinstall or delete `$APP_DATA` does not change secure-storage id（重装或删除 `$APP_DATA` 不改变系统安全存储里的 ID）。
-- [ ] Keychain/Credential Manager unavailable fallback is visible in logs/status（Keychain/Credential Manager 不可用时，fallback 状态能在日志或状态里看到）。
+- [x] Keychain/Credential Manager unavailable fallback is visible in logs/status（Keychain/Credential Manager 不可用时，fallback 状态能在日志或状态里看到）。
+  - 设置页 Pro 面板已展示 `secure_storage_available` 对应的“系统安全存储 / 本地文件 fallback”状态。
 - [ ] Purchase button opens Checkout（购买按钮能打开 Stripe Checkout）。
 - [x] Stripe success page and cancel page are readable（Stripe 成功页和取消页可读）。
 - [ ] License email content is readable（license 邮件内容可读）。

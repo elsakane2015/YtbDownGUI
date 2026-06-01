@@ -262,6 +262,16 @@ export default function SettingsPage() {
                 : `未激活 · ${shortId(entitlement?.device_id)}`
             }
           />
+          <StatusItem
+            label="身份存储"
+            value={
+              entitlement
+                ? entitlement.secure_storage_available
+                  ? "系统安全存储"
+                  : "本地文件 fallback"
+                : "加载中"
+            }
+          />
         </div>
         {entitlement?.token_validation_error &&
           entitlement.token_validation_error !== "token_missing" && (
