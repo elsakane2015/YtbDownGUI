@@ -451,8 +451,10 @@ IPC：
 - [ ] 端到端流程无需手工改 DB。
 - [x] webhook 重放安全。
   - 服务端 `pnpm smoke:local` 已覆盖 Stripe webhook replay duplicate，不重复创建 license。
-- [ ] 断网时未过期 token 可用。
-- [ ] 设备满额自动迁移和验证码迁移均可验证。
+- [x] 断网时未过期 token 可用。
+  - 客户端 Rust 测试已覆盖 refresh 失败时未过期 token 继续可用。
+- [x] 设备满额自动迁移和验证码迁移均可验证。
+  - 服务端 `pnpm smoke:local` 已覆盖 idle-device auto migration 和 email-code migration。
 
 ### Milestone 8: Release Preparation（发布准备）
 
