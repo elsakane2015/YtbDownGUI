@@ -266,9 +266,10 @@ Stripe events（需要处理的 Stripe 事件）：
 - [x] 手动录入咸鱼订单后，服务端生成 license 并发送邮件。
 - [x] 重复录入同一咸鱼订单不会重复发 license。
 - [x] 导入微店订单后，已付款订单自动发货，未付款订单不发货。
-- [ ] WooCommerce 测试订单支付完成后，webhook 自动创建 license 并发邮件。
-- [ ] 外部订单 license 可在客户端正常激活。
-- [ ] 外部订单退款或人工禁用后，refresh/activate 不再返回 Pro token。
+- [x] WooCommerce 测试订单支付完成后，webhook 自动创建 license 并发邮件。
+- [x] 外部订单 license 可在客户端正常激活。
+- [x] 外部订单退款或人工禁用后，refresh/activate 不再返回 Pro token。
+  - 服务端 `pnpm smoke:local` 已覆盖 WooCommerce 签名 webhook、外部订单 license 激活/refresh、退款后 refresh/activate 返回 `license_refunded`。
 
 ### Milestone 3: Free Quota Service（免费额度服务）
 
