@@ -475,7 +475,9 @@ IPC：
 - [x] 配置日志轮转，避免磁盘被日志打满。
 - [x] 配置 `/healthz` 监控。
 - [ ] 生成 production Ed25519 key pair。
+  - 已补服务端 `pnpm keys:production` 生成工具；真实生产密钥生成和保存待执行。
 - [ ] 私钥只进服务端环境变量或 secret manager。
+  - 已补服务端 `pnpm preflight:production`，上线前检查生产 `.env` 的签名密钥、Stripe / Resend 配置、Caddy 可信代理和占位密码。
 
 客户端：
 
@@ -774,3 +776,4 @@ Reasoning:
 - [x] 服务端项目骨架已初始化。
 - [x] 客户端授权代码已实现。
 - [x] Stripe test mode 已接入服务端 Checkout / webhook 履约代码，待真实 Stripe 控制台联调。
+- [x] 服务端已补生产密钥生成和部署前 preflight 校验脚本，待真实生产环境执行。
