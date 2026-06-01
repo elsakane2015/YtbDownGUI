@@ -20,7 +20,9 @@
 #   gh (GitHub CLI) must be installed and authenticated.
 #
 # Usage:
-#   bash scripts/release.sh
+#   bash scripts/release.sh        # auto: pro-dev -> Pro, otherwise free
+#   bash scripts/release.sh -pro   # require pro-dev and build Pro
+#   bash scripts/release.sh -free  # require main and build free
 #
 # Output:
 #   Free: releases/v<version>-b<build>/YtbDownGUI_<version>_b<build>_universal.dmg
@@ -31,8 +33,51 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 
+usage() {
+  cat <<'EOF'
+Usage:
+  bash scripts/release.sh          Auto channel from current branch
+  bash scripts/release.sh -pro     Build Pro release; requires pro-dev branch
+  bash scripts/release.sh --pro    Same as -pro
+  bash scripts/release.sh -free    Build main/free release; requires main branch
+  bash scripts/release.sh --free   Same as -free
+
+Environment fallback:
+  RELEASE_CHANNEL=pro|free|auto bash scripts/release.sh
+EOF
+}
+
+REQUESTED_CHANNEL="${RELEASE_CHANNEL:-auto}"
+STRICT_BRANCH_CHECK=false
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -pro|--pro)
+      REQUESTED_CHANNEL="pro"
+      STRICT_BRANCH_CHECK=true
+      ;;
+    -free|--free)
+      REQUESTED_CHANNEL="free"
+      STRICT_BRANCH_CHECK=true
+      ;;
+    -auto|--auto)
+      REQUESTED_CHANNEL="auto"
+      STRICT_BRANCH_CHECK=false
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: unknown argument: $1"
+      usage
+      exit 1
+      ;;
+  esac
+  shift
+done
+
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-RELEASE_CHANNEL="${RELEASE_CHANNEL:-auto}"
+RELEASE_CHANNEL="${REQUESTED_CHANNEL}"
 if [[ "${RELEASE_CHANNEL}" == "auto" ]]; then
   if [[ "${CURRENT_BRANCH}" == "pro-dev" ]]; then
     RELEASE_CHANNEL="pro"
@@ -43,6 +88,19 @@ fi
 if [[ "${RELEASE_CHANNEL}" != "free" && "${RELEASE_CHANNEL}" != "pro" ]]; then
   echo "ERROR: RELEASE_CHANNEL must be free, pro, or auto"
   exit 1
+fi
+
+if [[ "${STRICT_BRANCH_CHECK}" == true ]]; then
+  if [[ "${RELEASE_CHANNEL}" == "pro" && "${CURRENT_BRANCH}" != "pro-dev" ]]; then
+    echo "ERROR: -pro must be run on pro-dev. Current branch: ${CURRENT_BRANCH}"
+    echo "Run: git checkout pro-dev && git pull"
+    exit 1
+  fi
+  if [[ "${RELEASE_CHANNEL}" == "free" && "${CURRENT_BRANCH}" != "main" ]]; then
+    echo "ERROR: -free must be run on main. Current branch: ${CURRENT_BRANCH}"
+    echo "Run: git checkout main && git pull"
+    exit 1
+  fi
 fi
 
 if [[ "${RELEASE_CHANNEL}" == "pro" ]]; then

@@ -106,7 +106,8 @@ pnpm tauri dev
 # 需要 gh CLI 已登录，并且已导出生产 YTBDOWN_LICENSE_PUBLIC_KEY。
 # main 分支保持 v<版本>-b<build>；pro-dev 分支使用 pro-v<版本>-b<build>。
 pnpm preflight:release
-bash scripts/release.sh
+bash scripts/release.sh -pro   # 在 pro-dev 上构建 Pro
+# bash scripts/release.sh -free # 在 main 上构建免费版
 
 # （也可以直接跑 pnpm tauri build；只是不会自增 build 号，DMG 也不会带 build 编号）
 pnpm tauri build --target universal-apple-darwin

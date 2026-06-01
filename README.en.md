@@ -107,7 +107,8 @@ pnpm tauri dev
 # Requires gh CLI to be installed/authenticated and production YTBDOWN_LICENSE_PUBLIC_KEY exported.
 # main keeps v<version>-b<build>; pro-dev uses pro-v<version>-b<build>.
 pnpm preflight:release
-bash scripts/release.sh
+bash scripts/release.sh -pro   # Build Pro on pro-dev
+# bash scripts/release.sh -free # Build free on main
 
 # (Plain `pnpm tauri build` also works; it just doesn't bump the build
 # number or rename the DMG.)

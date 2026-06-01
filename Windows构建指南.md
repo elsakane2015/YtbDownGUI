@@ -80,7 +80,7 @@ pnpm preflight:release
 # 2. 本地用 release.sh 跑 macOS 打包。
 #    这一步会自动 .buildnumber +1、commit + push、创建 GitHub Release，
 #    并触发 Windows workflow。pro-dev 会创建 pro-v1.0.1-bXXX。
-bash scripts/release.sh
+bash scripts/release.sh -pro
 # 假设这次出了 b005
 
 # 3. Windows workflow 会自动构建并 attach zip 到刚刚创建的 Release
