@@ -648,8 +648,8 @@ TERMS_URL=
 - [x] activate seeded license（激活手动 seed 的 license）。
 - [x] refresh valid token（刷新有效 token）。
 - [x] deactivate device（撤销设备激活）。
-- [ ] activate 4th device with idle device replacement（第 4 台设备通过闲置设备替换激活）。
-- [ ] activate 4th device with transfer code（第 4 台设备通过邮箱验证码激活）。
+- [x] activate 4th device with idle device replacement（第 4 台设备通过闲置设备替换激活）。
+- [x] activate 4th device with transfer code（第 4 台设备通过邮箱验证码激活）。
 - [x] free quota 10 successful downloads then reject（免费额度成功下载 10 次后拒绝第 11 次）。
   - 已增加服务端 `pnpm smoke:local`，使用本地 PostgreSQL 和 Fastify API 覆盖以上集成路径。
 - [ ] server unavailable with unexpired token（服务端不可用但 token 未过期）。
