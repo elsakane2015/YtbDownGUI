@@ -124,11 +124,30 @@ PREV=$(cat "${BUILD_FILE}" 2>/dev/null | tr -d '[:space:]' || echo "0")
 PREV=${PREV:-0}
 NEXT=$((10#${PREV} + 1))
 BUILD_STR=$(printf "%03d" "${NEXT}")
-echo "${BUILD_STR}" > "${BUILD_FILE}"
 
 # --- read marketing version from tauri.conf.json -------------------------
 VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
 VERSION_LABEL="${CHANNEL_LABEL:+${CHANNEL_LABEL} }v${VERSION}"
+TAG="${TAG_PREFIX}${VERSION}-b${BUILD_STR}"
+
+if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+  echo "ERROR: local tag already exists: ${TAG}"
+  echo "Delete or choose a new build number before releasing."
+  exit 1
+fi
+REMOTE_TAG_STATUS=0
+git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1 || REMOTE_TAG_STATUS=$?
+if [[ "${REMOTE_TAG_STATUS}" -eq 0 ]]; then
+  echo "ERROR: remote tag already exists: ${TAG}"
+  echo "Do not reuse release tags; increment .buildnumber or delete the stale tag intentionally."
+  exit 1
+elif [[ "${REMOTE_TAG_STATUS}" -ne 2 ]]; then
+  echo "ERROR: could not verify whether remote tag exists: ${TAG}"
+  echo "Check network/GitHub access, then retry."
+  exit 1
+fi
+
+echo "${BUILD_STR}" > "${BUILD_FILE}"
 echo "Building YtbDownGUI ${VERSION_LABEL} (Build ${BUILD_STR})…"
 
 # --- run tauri build ------------------------------------------------------
@@ -151,7 +170,6 @@ codesign --force --deep --sign - "${APP}"
 echo "Re-signed ad-hoc"
 
 # --- archive folder for this release --------------------------------------
-TAG="${TAG_PREFIX}${VERSION}-b${BUILD_STR}"
 RELEASE_DIR="${REPO_ROOT}/releases/${TAG}"
 mkdir -p "${RELEASE_DIR}"
 DMG_FINAL="${RELEASE_DIR}/${ARTIFACT_PREFIX}_${VERSION}_b${BUILD_STR}_universal.dmg"
