@@ -119,6 +119,8 @@ pnpm tauri build --target universal-apple-darwin
 
 The Windows release is built via GitHub Actions (`.github/workflows/release-windows.yml`) and triggered automatically when a `v*-b*` (main/free) or `pro-v*-b*` (Pro) tag is pushed. The artifact is a portable zip attached to the GitHub Release.
 
+For manual Windows reruns, see the "手动触发 Windows 构建" section in [版本构建说明.md](./版本构建说明.md).
+
 To build locally (requires Windows 10/11 + PowerShell 7+):
 
 ```powershell

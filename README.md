@@ -117,6 +117,8 @@ pnpm tauri build --target universal-apple-darwin
 
 Windows 版通过 GitHub Actions 构建（`.github/workflows/release-windows.yml`），推送 `v*-b*`（main/free）或 `pro-v*-b*`（Pro）格式的 tag 时自动触发，产物为 portable zip，附加到对应的 GitHub Release。
 
+如果需要手动重跑 Windows 构建，步骤见 [版本构建说明.md](./版本构建说明.md) 的“手动触发 Windows 构建”。
+
 本地构建步骤（需要 Windows 10/11 + PowerShell 7+）：
 
 ```powershell
