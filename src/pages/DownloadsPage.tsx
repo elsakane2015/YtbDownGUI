@@ -11,6 +11,7 @@ import {
   listJobs,
   onDownloadProgress,
   onDownloadState,
+  onEntitlementUpdated,
   onProbeStatus,
   onSettingsUpdated,
   openPath,
@@ -106,10 +107,12 @@ export default function DownloadsPage() {
         prev.map((j) => (j.id === id ? { ...j, progress } : j)),
       );
     });
+    const unEntitlement = onEntitlementUpdated(setEntitlement);
     const unProbe = onProbeStatus((msg) => setProbeStatus(msg));
     return () => {
       unState.then((fn) => fn());
       unProg.then((fn) => fn());
+      unEntitlement.then((fn) => fn());
       unProbe.then((fn) => fn());
       unSettings.then((fn) => fn());
     };

@@ -269,6 +269,11 @@ export const defaultDownloadDir = () => invoke<string>("default_download_dir");
 export const getEntitlementStatus = () =>
   invoke<EntitlementStatus>("get_entitlement_status");
 
+export const onEntitlementUpdated = (
+  cb: (status: EntitlementStatus) => void,
+): Promise<UnlistenFn> =>
+  listen<EntitlementStatus>("entitlement:updated", (e) => cb(e.payload));
+
 export const activatePro = (licenseKey: string) =>
   invoke<ActivateProResult>("activate_pro", { licenseKey });
 

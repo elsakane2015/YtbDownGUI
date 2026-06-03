@@ -5,7 +5,13 @@ use crate::core::entitlement::{
     FreeQuotaStatus, ResendLicenseResponse, SupportContact, TransferCodeStatus,
 };
 use crate::error::AppResult;
-use tauri::State;
+use tauri::{Emitter, State};
+
+const ENTITLEMENT_UPDATED_EVENT: &str = "entitlement:updated";
+
+fn emit_entitlement_updated(app: &tauri::AppHandle, status: &EntitlementStatus) {
+    let _ = app.emit(ENTITLEMENT_UPDATED_EVENT, status);
+}
 
 #[tauri::command]
 pub fn get_entitlement_status(store: State<'_, EntitlementStore>) -> AppResult<EntitlementStatus> {
@@ -14,20 +20,35 @@ pub fn get_entitlement_status(store: State<'_, EntitlementStore>) -> AppResult<E
 
 #[tauri::command]
 pub async fn activate_pro(
+    app: tauri::AppHandle,
     store: State<'_, EntitlementStore>,
     license_key: String,
 ) -> AppResult<ActivateProResult> {
-    store.activate_pro(license_key).await
+    let result = store.activate_pro(license_key).await?;
+    if let ActivateProResult::Activated { status } = &result {
+        emit_entitlement_updated(&app, status);
+    }
+    Ok(result)
 }
 
 #[tauri::command]
-pub async fn refresh_pro(store: State<'_, EntitlementStore>) -> AppResult<EntitlementStatus> {
-    store.refresh_pro().await
+pub async fn refresh_pro(
+    app: tauri::AppHandle,
+    store: State<'_, EntitlementStore>,
+) -> AppResult<EntitlementStatus> {
+    let status = store.refresh_pro().await?;
+    emit_entitlement_updated(&app, &status);
+    Ok(status)
 }
 
 #[tauri::command]
-pub async fn deactivate_pro(store: State<'_, EntitlementStore>) -> AppResult<EntitlementStatus> {
-    store.deactivate_pro().await
+pub async fn deactivate_pro(
+    app: tauri::AppHandle,
+    store: State<'_, EntitlementStore>,
+) -> AppResult<EntitlementStatus> {
+    let status = store.deactivate_pro().await?;
+    emit_entitlement_updated(&app, &status);
+    Ok(status)
 }
 
 #[tauri::command]
@@ -40,13 +61,16 @@ pub async fn send_transfer_code(
 
 #[tauri::command]
 pub async fn activate_with_transfer_code(
+    app: tauri::AppHandle,
     store: State<'_, EntitlementStore>,
     license_key: String,
     transfer_code: String,
 ) -> AppResult<EntitlementStatus> {
-    store
+    let status = store
         .activate_with_transfer_code(license_key, transfer_code)
-        .await
+        .await?;
+    emit_entitlement_updated(&app, &status);
+    Ok(status)
 }
 
 #[tauri::command]
