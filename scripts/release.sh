@@ -11,10 +11,9 @@
 #   then rebuilds the DMG (with an Applications shortcut for drag-install).
 # - Each run lands in its own folder under `releases/<tag>/` so
 #   older builds aren't overwritten.
-# - Automatically commits .buildnumber, creates a GitHub Release (tag +
-#   release page + macOS DMG upload) via `gh`, then pushes — so the
-#   Windows GitHub Actions workflow always finds an existing release to
-#   attach its zip to.
+# - Automatically commits .buildnumber, pushes a release tag at the current
+#   commit to trigger Windows GitHub Actions, then creates a GitHub Release
+#   page and uploads the macOS DMG.
 #
 # Requirements:
 #   gh (GitHub CLI) must be installed and authenticated.
@@ -199,17 +198,23 @@ ditto "${APP}" "${RELEASE_DIR}/YtbDownGUI.app" 2>/dev/null || true
 # in place — it's the throwaway version the bundler always produces. Our
 # canonical artifact is the one under releases/.
 
-# --- commit .buildnumber + push -------------------------------------------
+# --- commit .buildnumber + push branch/tag --------------------------------
 git add "${BUILD_FILE}"
 git commit -m "chore: bump build number to ${BUILD_STR}"
 git push
 echo "Pushed commit"
 
-# --- create GitHub Release (tag + page + macOS DMG) -----------------------
-# gh release create creates the tag on GitHub at the current HEAD, uploads
-# the DMG, and publishes the release page — all in one step. The Windows
-# GitHub Actions workflow (triggered by the new tag) will then find the
-# release already exists and can attach its zip without failing.
+# Create and push the tag ourselves instead of letting `gh release create`
+# create it through the Release API. A normal `git push` tag event is what
+# reliably triggers `.github/workflows/release-windows.yml`, and it keeps Pro
+# tags attached to the current pro-dev HEAD instead of GitHub's default branch.
+git tag "${TAG}"
+git push origin "refs/tags/${TAG}"
+echo "Pushed tag: ${TAG}"
+
+# --- create GitHub Release page + macOS DMG -------------------------------
+# The Windows GitHub Actions workflow was triggered by the pushed tag. It will
+# attach its zip to this release once the Windows build finishes.
 RELEASE_NOTES="## macOS
 下载 \`.dmg\`，拖入 Applications，首次打开运行：
 \`\`\`bash
@@ -223,6 +228,7 @@ Windows 版正在构建中，稍后自动附到此 Release。
 
 gh release create "${TAG}" \
   "${DMG_FINAL}" \
+  --verify-tag \
   --title "${VERSION_LABEL} (Build ${BUILD_STR})" \
   --notes "${RELEASE_NOTES}"
 echo "GitHub Release created: ${TAG}"
@@ -240,6 +246,6 @@ echo "  .app : ${RELEASE_DIR}/YtbDownGUI.app"
 echo "  .dmg : ${DMG_FINAL}"
 echo "  size : $(du -h "${DMG_FINAL}" | awk '{print $1}')"
 echo "  sha  : $(shasum -a 256 "${DMG_FINAL}" | awk '{print $1}')"
-echo "  tag  : ${TAG} (pushed to GitHub, Windows build triggered)"
+echo "  tag  : ${TAG} (git-pushed to GitHub; Windows build triggered)"
 echo
 echo "Next build: $(printf "%03d" $((NEXT + 1)))"
