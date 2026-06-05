@@ -81,6 +81,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::probe::probe_tool_versions,
             commands::probe::probe,
+            commands::probe::list_supported_sites,
             commands::accounts::list_accounts,
             commands::accounts::start_login,
             commands::accounts::start_login_by_url,

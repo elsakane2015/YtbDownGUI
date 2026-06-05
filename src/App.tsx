@@ -3,6 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import DownloadsPage from "./pages/DownloadsPage";
 import AccountsPage from "./pages/AccountsPage";
 import SettingsPage from "./pages/SettingsPage";
+import SupportedSitesPage from "./pages/SupportedSitesPage";
 import {
   appVersion,
   installYtdlpUpdate,
@@ -12,12 +13,13 @@ import {
 } from "./lib/ipc";
 import "./App.css";
 
-type Tab = "downloads" | "accounts" | "settings";
+type Tab = "downloads" | "accounts" | "settings" | "sites";
 
 const NAV: { id: Tab; label: string }[] = [
   { id: "downloads", label: "下载" },
   { id: "accounts", label: "账号" },
   { id: "settings", label: "设置" },
+  { id: "sites", label: "支持网站" },
 ];
 
 function App() {
@@ -145,6 +147,9 @@ function App() {
         </div>
         <div style={{ display: tab === "settings" ? "block" : "none" }}>
           <SettingsPage />
+        </div>
+        <div style={{ display: tab === "sites" ? "block" : "none" }}>
+          <SupportedSitesPage active={tab === "sites"} />
         </div>
       </section>
     </main>

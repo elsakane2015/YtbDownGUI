@@ -31,6 +31,40 @@ pub async fn probe_tool_versions(app: AppHandle) -> Result<Vec<ToolVersion>, App
     ])
 }
 
+#[tauri::command]
+pub async fn list_supported_sites(app: AppHandle) -> Result<Vec<String>, AppError> {
+    let cmd = crate::core::download::yt_dlp_command(&app)?.args(["--list-extractors"]);
+    let (mut rx, _child) = cmd
+        .spawn()
+        .map_err(|e| AppError::Other(format!("spawn yt-dlp --list-extractors: {e}")))?;
+    let mut stdout = String::new();
+    let mut stderr = String::new();
+    while let Some(event) = rx.recv().await {
+        match event {
+            CommandEvent::Stdout(bytes) => stdout.push_str(&String::from_utf8_lossy(&bytes)),
+            CommandEvent::Stderr(bytes) => stderr.push_str(&String::from_utf8_lossy(&bytes)),
+            CommandEvent::Terminated(payload) => {
+                if payload.code != Some(0) {
+                    return Err(AppError::Other(format!(
+                        "yt-dlp --list-extractors exit {:?}: {}",
+                        payload.code,
+                        stderr.lines().next().unwrap_or("").trim()
+                    )));
+                }
+                break;
+            }
+            _ => {}
+        }
+    }
+    let sites = stdout
+        .lines()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(ToOwned::to_owned)
+        .collect();
+    Ok(sites)
+}
+
 /// Extract just the version number from "ffmpeg version 7.1.1 ..." or return
 /// the line as-is for yt-dlp (which prints just the version).
 fn pretty_ffmpeg_or_raw(result: &Result<String, String>) -> String {

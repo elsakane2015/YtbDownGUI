@@ -250,6 +250,9 @@ export const probeToolVersions = () =>
 
 export const probe = (url: string) => invoke<ProbeResult>("probe", { url });
 
+export const listSupportedSites = () =>
+  invoke<string[]>("list_supported_sites");
+
 export const listAccounts = () => invoke<AccountStatus[]>("list_accounts");
 
 export const startLogin = (accountId: string) =>
