@@ -689,6 +689,45 @@ mod tests {
     }
 
     #[test]
+    fn logout_preserves_account_for_relogin() {
+        let dir = tempdir().unwrap();
+        let target = ensure_login_target_for_url(dir.path(), "https://example.com/login").unwrap();
+        save_login_cookies(
+            dir.path(),
+            &target.account_id,
+            vec![cookies::StoredCookie {
+                name: "session".into(),
+                value: "abc".into(),
+                domain: "example.com".into(),
+                path: "/".into(),
+                secure: true,
+                http_only: true,
+                expires: None,
+            }],
+            None,
+        )
+        .unwrap();
+
+        let logged_out = logout(dir.path(), &target.account_id).unwrap();
+        assert_eq!(logged_out.status, AccountState::LoggedOut);
+        assert_eq!(logged_out.cookie_count, 0);
+        assert!(cookies::load(dir.path(), &target.account_id).is_err());
+
+        let accounts = list(dir.path()).unwrap();
+        let saved = accounts
+            .iter()
+            .find(|a| a.account_id == target.account_id)
+            .expect("logged-out account remains in registry");
+        assert_eq!(saved.status, AccountState::LoggedOut);
+        assert_eq!(saved.primary_host, "example.com");
+
+        let relogin = ensure_login_target_for_account(dir.path(), &target.account_id).unwrap();
+        assert_eq!(relogin.account_id, target.account_id);
+        assert_eq!(relogin.login_url, "https://example.com/login");
+        assert!(relogin.manual_finish_required);
+    }
+
+    #[test]
     fn prepare_uses_most_specific_matching_account() {
         let dir = tempdir().unwrap();
         let root = ensure_login_target_for_url(dir.path(), "https://example.com").unwrap();
@@ -728,5 +767,31 @@ mod tests {
             .unwrap();
         let exported = std::fs::read_to_string(prepared.path).unwrap();
         assert!(exported.contains("\tsub\t2"));
+    }
+
+    #[test]
+    fn prepare_returns_saved_user_agent() {
+        let dir = tempdir().unwrap();
+        let target = ensure_login_target_for_url(dir.path(), "https://example.com").unwrap();
+        save_login_cookies(
+            dir.path(),
+            &target.account_id,
+            vec![cookies::StoredCookie {
+                name: "session".into(),
+                value: "abc".into(),
+                domain: "example.com".into(),
+                path: "/".into(),
+                secure: true,
+                http_only: false,
+                expires: None,
+            }],
+            Some("TestBrowser/1.0".into()),
+        )
+        .unwrap();
+
+        let prepared = prepare_cookies_for_url(dir.path(), "https://www.example.com/video")
+            .unwrap()
+            .unwrap();
+        assert_eq!(prepared.user_agent.as_deref(), Some("TestBrowser/1.0"));
     }
 }
