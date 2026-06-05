@@ -65,8 +65,21 @@ pub fn open_target(app: &AppHandle, target: LoginTarget) -> AppResult<WebviewWin
          (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
             .to_string(),
     );
-    #[cfg(not(target_os = "windows"))]
-    let user_agent: Option<String> = None;
+    #[cfg(target_os = "macos")]
+    let user_agent = Some(
+        // WKWebView can expose an app-flavoured default UA. A normal desktop
+        // Safari UA is closer to the browser environment that strict login
+        // pages expect on macOS.
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 \
+         (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
+            .to_string(),
+    );
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    let user_agent = Some(
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 \
+         (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+            .to_string(),
+    );
     set_current_login_user_agent(user_agent.clone());
 
     // on_page_load fires twice per page (Started + Finished). Use an atomic

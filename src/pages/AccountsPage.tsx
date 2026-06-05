@@ -82,7 +82,7 @@ export default function AccountsPage() {
     setToast(
       started.manual_finish_required
         ? `登录窗口已打开 (${started.display_name})。登录完成后点击"完成登录"保存 cookies。`
-        : `登录窗口已打开 (${started.display_name})。检测到登录 cookies 后会自动保存。`,
+        : `登录窗口已打开 (${started.display_name})。检测到登录 cookies 后会自动保存，也可以手动完成。`,
     );
   };
 
@@ -178,11 +178,9 @@ export default function AccountsPage() {
           <div className="card-actions">
             {isActive && (
               <>
-                {activeLogin.manual_finish_required && (
-                  <button onClick={handleFinish} disabled={busy !== null}>
-                    完成登录
-                  </button>
-                )}
+                <button onClick={handleFinish} disabled={busy !== null}>
+                  完成登录
+                </button>
                 <button onClick={handleCancel} className="secondary">
                   取消
                 </button>
@@ -262,11 +260,9 @@ export default function AccountsPage() {
             <p className="muted">{activeLogin.login_url}</p>
           </div>
           <div className="card-actions">
-            {activeLogin.manual_finish_required && (
-              <button onClick={handleFinish} disabled={busy !== null}>
-                完成登录
-              </button>
-            )}
+            <button onClick={handleFinish} disabled={busy !== null}>
+              完成登录
+            </button>
             <button onClick={handleCancel} className="secondary">
               取消
             </button>

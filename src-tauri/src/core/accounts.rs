@@ -205,10 +205,10 @@ pub fn save_login_cookies(
     if user_agent.is_some() {
         record.user_agent = user_agent;
     }
-    record.status = if normalized.is_empty() {
-        AccountState::LoggedOut
-    } else {
+    record.status = if login_cookie_detected(&record_snapshot, &normalized) {
         AccountState::LoggedIn
+    } else {
+        AccountState::LoggedOut
     };
     record.updated_at = now_ts();
     let out = record.clone();
@@ -458,6 +458,15 @@ fn cookie_domains(cookies: &[cookies::StoredCookie], record: &AccountRecord) -> 
     set.into_iter().collect()
 }
 
+fn login_cookie_detected(record: &AccountRecord, cookies: &[cookies::StoredCookie]) -> bool {
+    if let Some(site) = record.known_site_id.as_deref().and_then(sites::find) {
+        return cookies
+            .iter()
+            .any(|c| c.name == site.logged_in_marker_cookie);
+    }
+    !cookies.is_empty()
+}
+
 fn match_score(host: &str, account: &AccountRecord, known_site_id: Option<&str>) -> i32 {
     let mut score = 0;
     if account
@@ -626,6 +635,32 @@ mod tests {
             registry.accounts[0].login_url,
             "https://www.example.com/new-login"
         );
+    }
+
+    #[test]
+    fn known_site_requires_marker_cookie_to_be_logged_in() {
+        let dir = tempdir().unwrap();
+        let target = ensure_login_target_for_url(dir.path(), "https://x.com").unwrap();
+        assert_eq!(target.account_id, "twitter");
+
+        let saved = save_login_cookies(
+            dir.path(),
+            &target.account_id,
+            vec![cookies::StoredCookie {
+                name: "guest_id".into(),
+                value: "abc".into(),
+                domain: ".x.com".into(),
+                path: "/".into(),
+                secure: true,
+                http_only: false,
+                expires: None,
+            }],
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(saved.status, AccountState::LoggedOut);
+        assert_eq!(saved.cookie_count, 1);
     }
 
     #[test]

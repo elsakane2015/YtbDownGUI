@@ -65,6 +65,11 @@ pub fn finish_login(app: AppHandle, account_id: String) -> AppResult<usize> {
         cookies,
         login_window::current_login_user_agent(),
     )?;
+    if record.status != account_store::AccountState::LoggedIn {
+        return Err(AppError::Other(
+            "未检测到可用登录 cookies，请在登录窗口完成登录后再试。".into(),
+        ));
+    }
     login_window::mark_finished();
     let _ = win.close();
 
