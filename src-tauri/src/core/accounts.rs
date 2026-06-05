@@ -7,9 +7,7 @@
 use crate::core::{cookies, sites};
 use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
-use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeSet;
-use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
@@ -117,7 +115,10 @@ pub fn ensure_login_target_for_url(app_data_dir: &Path, input: &str) -> AppResul
     let record = match registry
         .accounts
         .iter_mut()
-        .find(|a| a.account_id == account_id)
+        .find(|a| {
+            a.account_id == account_id
+                || (a.known_site_id.is_none() && a.primary_host == primary_host)
+        })
     {
         Some(existing) => {
             existing.login_url = url.as_str().to_string();
@@ -526,9 +527,12 @@ fn normalize_cookie_domain(raw: &str) -> String {
 }
 
 fn short_hash(value: &str) -> String {
-    let mut hasher = DefaultHasher::new();
-    value.hash(&mut hasher);
-    format!("{:08x}", hasher.finish() as u32)
+    let mut hash: u32 = 0x811c9dc5;
+    for byte in value.as_bytes() {
+        hash ^= u32::from(*byte);
+        hash = hash.wrapping_mul(0x01000193);
+    }
+    format!("{hash:08x}")
 }
 
 fn now_ts() -> i64 {
@@ -574,6 +578,54 @@ mod tests {
         assert!(domain_matches("example.com", ".example.com"));
         assert!(!domain_matches("badexample.com", "example.com"));
         assert!(!domain_matches("example.com.evil.test", "example.com"));
+    }
+
+    #[test]
+    fn dynamic_account_id_is_stable_and_sanitized() {
+        assert_eq!(
+            account_id_for_host("www.example.com"),
+            "web_www_example_com_88469fcb"
+        );
+        assert_eq!(
+            account_id_for_host("a_b.example.com"),
+            "web_a_b_example_com_039e53be"
+        );
+        assert_ne!(
+            account_id_for_host("a-b.example.com"),
+            account_id_for_host("a_b.example.com")
+        );
+    }
+
+    #[test]
+    fn login_by_url_reuses_existing_dynamic_account_for_host() {
+        let dir = tempdir().unwrap();
+        let mut registry = AccountRegistry {
+            version: REGISTRY_VERSION,
+            accounts: vec![AccountRecord {
+                account_id: "web_www_example_com_legacy".into(),
+                display_name: "example.com".into(),
+                login_url: "https://www.example.com/old-login".into(),
+                primary_host: "www.example.com".into(),
+                cookie_domains: vec!["www.example.com".into()],
+                status: AccountState::LoggedOut,
+                cookie_count: 0,
+                updated_at: 1,
+                known_site_id: None,
+                user_agent: None,
+            }],
+        };
+        save_registry(dir.path(), &registry).unwrap();
+
+        let target =
+            ensure_login_target_for_url(dir.path(), "https://www.example.com/new-login").unwrap();
+        assert_eq!(target.account_id, "web_www_example_com_legacy");
+
+        registry = load_registry(dir.path()).unwrap();
+        assert_eq!(registry.accounts.len(), 1);
+        assert_eq!(
+            registry.accounts[0].login_url,
+            "https://www.example.com/new-login"
+        );
     }
 
     #[test]
