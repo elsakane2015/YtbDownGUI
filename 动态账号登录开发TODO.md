@@ -100,6 +100,11 @@
 - [ ] 手测：登出后进入已登出卡片，重新登录后回到已登录卡片。
 - [ ] 手测：下载 URL 能自动使用对应动态 cookies。
 
+## 实测记录
+
+- [x] 2026-06-05：未知网站 `mooc1.chaoxing.com` 可通过账号页登录并保存 cookies，账号管理链路有效。
+- [ ] 2026-06-05：`mooc1.chaoxing.com` 探测失败，yt-dlp 返回 `Unsupported URL`；该结果不能作为“未知 yt-dlp 支持网站”下载链路通过证据。
+
 ## 建议实施顺序
 
 1. 先做账号 registry、URL/domain 匹配、cookie 保存和导出。
