@@ -20,6 +20,7 @@ pub struct StoredCookie {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[allow(dead_code)]
 pub struct SiteStatus {
     pub site_id: String,
     pub cookie_count: usize,
@@ -61,6 +62,7 @@ pub fn delete(app_data_dir: &Path, site_id: &str) -> AppResult<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn status(app_data_dir: &Path, site_id: &str, marker_cookie: &str) -> SiteStatus {
     match load(app_data_dir, site_id) {
         Ok(cookies) => SiteStatus {

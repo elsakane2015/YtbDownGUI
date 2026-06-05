@@ -2,7 +2,7 @@
 //! running yt-dlp as a child process and streaming progress back to the UI
 //! via Tauri events.
 
-use crate::core::{cookies, entitlement::EntitlementStore, settings::SettingsStore, sites};
+use crate::core::{accounts, entitlement::EntitlementStore, settings::SettingsStore};
 use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
@@ -428,11 +428,11 @@ async fn run_one_job(inner: Arc<Inner>, app: AppHandle, job_id: String, req: Enq
 
     let settings = app.state::<SettingsStore>().get();
 
-    let site = sites::match_url(&req.url);
-    let cookies_file = match site {
-        Some(s) => prepare_cookies(&app, s.id).ok(),
-        None => None,
-    };
+    let prepared_cookies = crate::core::paths::data_dir(&app).ok().and_then(|dir| {
+        accounts::prepare_cookies_for_url(&dir, &req.url)
+            .ok()
+            .flatten()
+    });
 
     let output_dir = req
         .output_dir
@@ -460,9 +460,17 @@ async fn run_one_job(inner: Arc<Inner>, app: AppHandle, job_id: String, req: Enq
         args.push("--ffmpeg-location".into());
         args.push(ff.display().to_string());
     }
-    if let Some(c) = &cookies_file {
+    if let Some(c) = prepared_cookies.as_ref().map(|p| &p.path) {
         args.push("--cookies".into());
         args.push(c.display().to_string());
+    }
+    if let Some(ua) = prepared_cookies
+        .as_ref()
+        .and_then(|p| p.user_agent.as_deref())
+        .filter(|ua| !ua.trim().is_empty())
+    {
+        args.push("--user-agent".into());
+        args.push(ua.trim().into());
     }
     // Proxy from user settings (http://… / socks5://…). Empty = no proxy.
     if !settings.proxy.trim().is_empty() {
@@ -1216,16 +1224,6 @@ fn set_progress(inner: &Arc<Inner>, app: &AppHandle, id: &str, progress: JobProg
 fn fail(inner: &Arc<Inner>, app: &AppHandle, id: &str, msg: &str) {
     eprintln!("[download:{id}] failed: {msg}");
     set_state(inner, app, id, JobState::Failed, None, Some(msg.into()));
-}
-
-fn prepare_cookies(app: &AppHandle, site_id: &str) -> AppResult<PathBuf> {
-    let data_dir = crate::core::paths::data_dir(app)?;
-    let stored = cookies::load(&data_dir, site_id)?;
-    let tmp = data_dir.join("tmp");
-    std::fs::create_dir_all(&tmp)?;
-    let out = tmp.join(format!("{site_id}.cookies.txt"));
-    cookies::write_netscape(&stored, &out)?;
-    Ok(out)
 }
 
 fn bundled_ffmpeg_path(app: &AppHandle) -> AppResult<PathBuf> {

@@ -222,6 +222,64 @@ button.danger {
   flex-shrink: 0;
 }
 
+.login-entry,
+.active-login {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.login-entry h3,
+.active-login h3,
+.section-title h3 {
+  margin: 0;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.login-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.login-form input {
+  min-width: 0;
+  flex: 1;
+  font: inherit;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-strong);
+  color: inherit;
+}
+
+.login-form input:focus {
+  outline: 2px solid rgba(0, 122, 255, 0.25);
+  border-color: rgba(0, 122, 255, 0.5);
+}
+
+.account-section {
+  margin-top: 22px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.empty-card {
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 18px 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .placeholder {
   display: flex;
   flex-direction: column;

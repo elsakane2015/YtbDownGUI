@@ -6,10 +6,9 @@
 //! of a playlist / channel — so a 1000-video channel returns in a few
 //! seconds with metadata only.
 
-use crate::core::{cookies, settings::SettingsStore, sites};
+use crate::core::{accounts, settings::SettingsStore, sites};
 use crate::error::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::process::CommandEvent;
 
@@ -158,13 +157,20 @@ struct YtEntry {
 
 pub async fn probe(app: &AppHandle, url: &str) -> AppResult<ProbeResult> {
     let site = sites::match_url(url);
-    let cookies_file = match site {
-        Some(s) => prepare_cookies(app, s.id).ok(),
-        None => None,
-    };
+    let data_dir = crate::core::paths::data_dir(app)?;
+    let prepared_cookies = accounts::prepare_cookies_for_url(&data_dir, url)?;
     let use_flat = site.map(|s| s.use_flat_playlist).unwrap_or(true);
 
-    let json = run_yt_dlp_dump_json(app, url, cookies_file.as_deref(), use_flat).await?;
+    let json = run_yt_dlp_dump_json(
+        app,
+        url,
+        prepared_cookies.as_ref().map(|p| p.path.as_path()),
+        prepared_cookies
+            .as_ref()
+            .and_then(|p| p.user_agent.as_deref()),
+        use_flat,
+    )
+    .await?;
     let parsed: YtJson = serde_json::from_str(&json)
         .map_err(|e| AppError::Other(format!("yt-dlp JSON parse: {e}")))?;
 
@@ -183,7 +189,10 @@ pub async fn probe(app: &AppHandle, url: &str) -> AppResult<ProbeResult> {
             entries,
         })
     } else {
-        Ok(ProbeResult::SingleVideo(shape_video(parsed, site.map(|s| s.id))))
+        Ok(ProbeResult::SingleVideo(shape_video(
+            parsed,
+            site.map(|s| s.id),
+        )))
     }
 }
 
@@ -321,6 +330,7 @@ async fn run_yt_dlp_dump_json(
     app: &AppHandle,
     url: &str,
     cookies_file: Option<&std::path::Path>,
+    user_agent: Option<&str>,
     use_flat_playlist: bool,
 ) -> AppResult<String> {
     let mut args: Vec<String> = vec!["--no-config".into(), "-J".into(), "--no-warnings".into()];
@@ -334,6 +344,10 @@ async fn run_yt_dlp_dump_json(
     if let Some(c) = cookies_file {
         args.push("--cookies".into());
         args.push(c.display().to_string());
+    }
+    if let Some(ua) = user_agent.filter(|ua| !ua.trim().is_empty()) {
+        args.push("--user-agent".into());
+        args.push(ua.trim().into());
     }
     // Apply user-configured proxy if any
     let settings = app.state::<SettingsStore>().get();
@@ -411,14 +425,4 @@ fn friendly_probe_status(line: &str) -> Option<String> {
         }
     }
     None
-}
-
-fn prepare_cookies(app: &AppHandle, site_id: &str) -> AppResult<PathBuf> {
-    let data_dir = crate::core::paths::data_dir(app)?;
-    let stored = cookies::load(&data_dir, site_id)?;
-    let tmp = data_dir.join("tmp");
-    std::fs::create_dir_all(&tmp)?;
-    let out = tmp.join(format!("{site_id}.cookies.txt"));
-    cookies::write_netscape(&stored, &out)?;
-    Ok(out)
 }

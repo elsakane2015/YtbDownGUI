@@ -83,6 +83,7 @@ pub fn run() {
             commands::probe::probe,
             commands::accounts::list_accounts,
             commands::accounts::start_login,
+            commands::accounts::start_login_by_url,
             commands::accounts::finish_login,
             commands::accounts::cancel_login,
             commands::accounts::logout,

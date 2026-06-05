@@ -1,3 +1,4 @@
+pub mod accounts;
 pub mod cookies;
 pub mod download;
 pub mod entitlement;

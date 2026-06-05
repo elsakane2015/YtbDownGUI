@@ -2,9 +2,10 @@
 //! login URL, watches navigation, and exposes cookie extraction so the rest
 //! of the app can grab session cookies once the user is signed in.
 //!
-//! Intentionally keeps zero site-specific branching — every site comes from
-//! `core::sites`. The window's title is kept in sync with the loaded URL so
-//! the user can always see what domain they are on.
+//! Intentionally keeps zero site-specific branching — known-site details and
+//! dynamic URLs are normalized into `LoginTarget` before this module sees
+//! them. The window's title is kept in sync with the loaded URL so the user
+//! can always see what domain they are on.
 //!
 //! Once a window is open, a background poller checks every 2s for the
 //! site's marker cookie. As soon as it appears (the user finished signing
@@ -12,30 +13,42 @@
 //! not have to remember to come back and click "Finish".
 
 use crate::core::{
-    cookies::{self, StoredCookie},
-    sites::{self, Site},
+    accounts::{self, LoginTarget},
+    cookies::StoredCookie,
 };
 use crate::error::{AppError, AppResult};
+use serde::Serialize;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc,
+    Arc, Mutex,
 };
 use std::time::Duration;
-use tauri::{webview::PageLoadEvent, AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{
+    webview::PageLoadEvent, AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder,
+};
 
 pub const LOGIN_WINDOW_LABEL: &str = "login";
+static LOGIN_FINISHED: AtomicBool = AtomicBool::new(false);
+static LOGIN_USER_AGENT: Mutex<Option<String>> = Mutex::new(None);
 
-/// Open the login window and start a background watcher that auto-saves
-/// cookies once the site's marker cookie appears.
-pub fn open(app: &AppHandle, site: &Site) -> AppResult<WebviewWindow> {
+#[derive(Debug, Clone, Serialize)]
+pub struct LoginEventPayload {
+    pub account_id: String,
+    pub display_name: String,
+    pub cookie_count: usize,
+}
+
+pub fn open_target(app: &AppHandle, target: LoginTarget) -> AppResult<WebviewWindow> {
     if let Some(existing) = app.get_webview_window(LOGIN_WINDOW_LABEL) {
         let _ = existing.set_focus();
-        return Err(AppError::LoginInProgress(site.id.into()));
+        return Err(AppError::LoginInProgress(target.account_id));
     }
+    LOGIN_FINISHED.store(false, Ordering::SeqCst);
 
-    let target_url_str = site.login_url.to_string();
-    let display = site.display_name.to_string();
-    let initial_title = format!("登录 {} · {}", site.display_name, site.login_url);
+    let target_url_str = target.login_url.clone();
+    let display = target.display_name.clone();
+    let initial_title = format!("登录 {} · {}", target.display_name, target.login_url);
 
     // ─── Windows WebView2 white-screen workaround ─────────────────────────
     // Tauri 2 / WebView2 can white-screen or hang when a webview window is
@@ -54,6 +67,7 @@ pub fn open(app: &AppHandle, site: &Site) -> AppResult<WebviewWindow> {
     );
     #[cfg(not(target_os = "windows"))]
     let user_agent: Option<String> = None;
+    set_current_login_user_agent(user_agent.clone());
 
     // on_page_load fires twice per page (Started + Finished). Use an atomic
     // flag so we only navigate once, and only after the stub has fully loaded.
@@ -115,22 +129,17 @@ pub fn open(app: &AppHandle, site: &Site) -> AppResult<WebviewWindow> {
 
     crate::core::log::write(format!(
         "[login:{}] window built on local stub, waiting to navigate to {}",
-        site.id, target_url_str
+        target.account_id, target_url_str
     ));
 
-    spawn_watcher(app.clone(), site.id.to_string());
+    spawn_watcher(app.clone(), target);
     Ok(win)
 }
 
-/// Fetch cookies from the open login window scoped to `site.cookies_for_url`.
-pub fn fetch_cookies(window: &WebviewWindow, site: &Site) -> AppResult<Vec<StoredCookie>> {
-    let url: tauri::Url = site
-        .cookies_for_url
-        .parse()
-        .map_err(|e| AppError::Other(format!("bad cookies URL: {e}")))?;
+pub fn fetch_all_cookies(window: &WebviewWindow) -> AppResult<Vec<StoredCookie>> {
     let cookies = window
-        .cookies_for_url(url)
-        .map_err(|e| AppError::Other(format!("cookies_for_url failed: {e}")))?;
+        .cookies()
+        .map_err(|e| AppError::Other(format!("cookies failed: {e}")))?;
     Ok(cookies.into_iter().map(cookie_to_stored).collect())
 }
 
@@ -157,20 +166,29 @@ pub fn close(app: &AppHandle) -> AppResult<()> {
     Ok(())
 }
 
-/// Spawn a background task that polls the login window for the site's marker
-/// cookie. On detection: save all cookies, close the window, emit
-/// `account:updated`. Exits silently if the user closes the window manually.
-fn spawn_watcher(app: AppHandle, site_id: String) {
-    tauri::async_runtime::spawn(async move {
-        let site = match sites::find(&site_id) {
-            Some(s) => s,
-            None => return,
-        };
+pub fn mark_finished() {
+    LOGIN_FINISHED.store(true, Ordering::SeqCst);
+}
 
-        eprintln!(
-            "[login:{site_id}] watcher started, looking for marker cookie '{}'",
-            site.logged_in_marker_cookie
-        );
+pub fn current_login_user_agent() -> Option<String> {
+    LOGIN_USER_AGENT.lock().ok().and_then(|ua| ua.clone())
+}
+
+/// Spawn a background task that polls the login window for the target marker
+/// cookie. On detection: save all cookies, close the window, emit events.
+fn spawn_watcher(app: AppHandle, target: LoginTarget) {
+    tauri::async_runtime::spawn(async move {
+        let account_id = target.account_id.clone();
+        let marker_cookie = target.marker_cookie.clone();
+
+        if let Some(marker) = &marker_cookie {
+            eprintln!(
+                "[login:{account_id}] watcher started, looking for marker cookie '{}'",
+                marker
+            );
+        } else {
+            eprintln!("[login:{account_id}] watcher started, waiting for manual finish");
+        }
 
         // Cap at ~20 minutes so a forgotten login window doesn't poll forever.
         let mut tick: u32 = 0;
@@ -181,10 +199,17 @@ fn spawn_watcher(app: AppHandle, site_id: String) {
             let win = match app.get_webview_window(LOGIN_WINDOW_LABEL) {
                 Some(w) => w,
                 None => {
-                    eprintln!("[login:{site_id}] window closed by user, watcher exiting");
-                    let _ = app.emit("login:cancelled", site.id);
+                    if LOGIN_FINISHED.load(Ordering::SeqCst) {
+                        return;
+                    }
+                    eprintln!("[login:{account_id}] window closed by user, watcher exiting");
+                    let _ = app.emit("login:cancelled", account_id);
                     return;
                 }
+            };
+
+            let Some(marker_cookie) = marker_cookie.as_deref() else {
+                continue;
             };
 
             // Fetch ALL cookies in this webview (not filtered by URL). The URL
@@ -195,7 +220,7 @@ fn spawn_watcher(app: AppHandle, site_id: String) {
             let cookies = match win.cookies() {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!("[login:{site_id}] tick {tick}: cookies() error: {e}");
+                    eprintln!("[login:{account_id}] tick {tick}: cookies() error: {e}");
                     continue;
                 }
             };
@@ -203,15 +228,13 @@ fn spawn_watcher(app: AppHandle, site_id: String) {
             if tick <= 3 || tick % 5 == 0 {
                 let names: Vec<&str> = cookies.iter().map(|c| c.name()).collect();
                 eprintln!(
-                    "[login:{site_id}] tick {tick}: {} cookies: {:?}",
+                    "[login:{account_id}] tick {tick}: {} cookies: {:?}",
                     cookies.len(),
                     names
                 );
             }
 
-            let has_marker = cookies
-                .iter()
-                .any(|c| c.name() == site.logged_in_marker_cookie);
+            let has_marker = cookies.iter().any(|c| c.name() == marker_cookie);
             if !has_marker {
                 continue;
             }
@@ -220,29 +243,50 @@ fn spawn_watcher(app: AppHandle, site_id: String) {
             let data_dir = match crate::core::paths::data_dir(&app) {
                 Ok(p) => p,
                 Err(e) => {
-                    eprintln!("[login:{site_id}] no app_data_dir: {e}");
+                    eprintln!("[login:{account_id}] no app_data_dir: {e}");
                     return;
                 }
             };
 
-            if let Err(e) = cookies::save(&data_dir, site.id, &stored) {
-                eprintln!("[login:{site_id}] save failed: {e}");
-                let _ = app.emit("login:failed", format!("save error: {e}"));
-                return;
-            }
+            let record = match accounts::save_login_cookies(
+                &data_dir,
+                &account_id,
+                stored,
+                current_login_user_agent(),
+            ) {
+                Ok(record) => record,
+                Err(e) => {
+                    eprintln!("[login:{account_id}] save failed: {e}");
+                    let _ = app.emit("login:failed", format!("save error: {e}"));
+                    return;
+                }
+            };
 
             eprintln!(
-                "[login:{site_id}] detected marker {}, saved {} cookies",
-                site.logged_in_marker_cookie,
-                stored.len()
+                "[login:{account_id}] detected marker {}, saved {} cookies",
+                marker_cookie, record.cookie_count
             );
+            mark_finished();
             let _ = win.close();
-            let _ = app.emit("account:updated", site.id);
-            let _ = app.emit("login:succeeded", site.id);
+            let _ = app.emit("account:updated", &account_id);
+            let _ = app.emit(
+                "login:succeeded",
+                LoginEventPayload {
+                    account_id,
+                    display_name: record.display_name,
+                    cookie_count: record.cookie_count,
+                },
+            );
             return;
         }
 
-        eprintln!("[login:{site_id}] watcher timed out after 20 minutes");
-        let _ = app.emit("login:timeout", site.id);
+        eprintln!("[login:{account_id}] watcher timed out after 20 minutes");
+        let _ = app.emit("login:timeout", account_id);
     });
+}
+
+fn set_current_login_user_agent(user_agent: Option<String>) {
+    if let Ok(mut current) = LOGIN_USER_AGENT.lock() {
+        *current = user_agent;
+    }
 }

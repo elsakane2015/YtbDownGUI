@@ -6,9 +6,26 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 export type ToolVersion = { name: string; version: string };
 
 export type AccountStatus = {
-  site_id: string;
+  account_id: string;
   display_name: string;
+  login_url: string;
+  primary_host: string;
+  status: "logged_in" | "logged_out";
   logged_in: boolean;
+  cookie_count: number;
+  known_site_id: string | null;
+};
+
+export type LoginStartResult = {
+  account_id: string;
+  display_name: string;
+  login_url: string;
+  manual_finish_required: boolean;
+};
+
+export type LoginEventPayload = {
+  account_id: string;
+  display_name: string;
   cookie_count: number;
 };
 
@@ -235,18 +252,22 @@ export const probe = (url: string) => invoke<ProbeResult>("probe", { url });
 
 export const listAccounts = () => invoke<AccountStatus[]>("list_accounts");
 
-export const startLogin = (siteId: string) =>
-  invoke<void>("start_login", { siteId });
+export const startLogin = (accountId: string) =>
+  invoke<LoginStartResult>("start_login", { accountId });
 
-export const finishLogin = (siteId: string) =>
-  invoke<number>("finish_login", { siteId });
+export const startLoginByUrl = (url: string) =>
+  invoke<LoginStartResult>("start_login_by_url", { url });
+
+export const finishLogin = (accountId: string) =>
+  invoke<number>("finish_login", { accountId });
 
 export const cancelLogin = () => invoke<void>("cancel_login");
 
-export const logout = (siteId: string) => invoke<void>("logout", { siteId });
+export const logout = (accountId: string) =>
+  invoke<void>("logout", { accountId });
 
-export const exportCookiesNetscape = (siteId: string) =>
-  invoke<string>("export_cookies_netscape", { siteId });
+export const exportCookiesNetscape = (accountId: string) =>
+  invoke<string>("export_cookies_netscape", { accountId });
 
 export const enqueueDownload = (req: EnqueueRequest) =>
   invoke<string>("enqueue_download", { req });
@@ -416,9 +437,9 @@ export const onAccountUpdated = (
 
 export const onLoginEvent = (
   kind: "succeeded" | "cancelled" | "timeout" | "failed",
-  cb: (payload: string) => void,
+  cb: (payload: LoginEventPayload | string) => void,
 ): Promise<UnlistenFn> =>
-  listen<string>(`login:${kind}`, (e) => cb(e.payload));
+  listen<LoginEventPayload | string>(`login:${kind}`, (e) => cb(e.payload));
 
 export const onDownloadState = (
   cb: (job: DownloadJob) => void,
