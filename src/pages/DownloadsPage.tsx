@@ -241,7 +241,7 @@ export default function DownloadsPage() {
       <header className="page-header">
         <h2>下载</h2>
         <p className="muted">
-          粘贴 YouTube / Bilibili 视频 URL，分析后选择画质与字幕。
+          粘贴 Bilibili / 抖音 视频 URL，分析后选择画质与字幕。
         </p>
       </header>
 
@@ -250,7 +250,7 @@ export default function DownloadsPage() {
       <div className="urlbar">
         <input
           className="url-input"
-          placeholder="https://www.youtube.com/watch?v=..."
+          placeholder="https://www.bilibili.com/video/BV..."
           value={url}
           onChange={(e) => setUrl(e.currentTarget.value)}
           onKeyDown={(e) => e.key === "Enter" && handleProbe()}
