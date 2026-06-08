@@ -137,6 +137,34 @@ body[data-platform="macos"] .tabs {
   font-size: 20px;
 }
 
+.download-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.download-title-row h2 {
+  margin-bottom: 0;
+}
+
+.pro-badge {
+  padding: 1px 5px;
+  border: 1px solid rgba(52, 199, 89, 0.3);
+  border-radius: 4px;
+  background: rgba(52, 199, 89, 0.1);
+  color: #187a36;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .pro-badge {
+    color: #57d879;
+  }
+}
+
 .muted {
   color: var(--muted);
   margin: 0;
@@ -428,10 +456,6 @@ button.small {
 }
 .quota-banner strong {
   font-size: 13px;
-}
-.quota-banner.pro {
-  border-color: rgba(52, 199, 89, 0.28);
-  background: rgba(52, 199, 89, 0.10);
 }
 
 /* Indeterminate progress shown while probing a (possibly long) playlist URL.

@@ -239,7 +239,14 @@ export default function DownloadsPage() {
   return (
     <div className="page">
       <header className="page-header">
-        <h2>下载</h2>
+        <div className="download-title-row">
+          <h2>下载</h2>
+          {entitlement?.pro_active && (
+            <span className="pro-badge" aria-label="Pro 已激活">
+              Pro
+            </span>
+          )}
+        </div>
         <p className="muted">
           粘贴 Bilibili / 抖音 视频 URL，分析后选择画质与字幕。
         </p>
@@ -377,19 +384,8 @@ export default function DownloadsPage() {
 }
 
 function QuotaBanner({ entitlement }: { entitlement: EntitlementStatus | null }) {
-  if (!entitlement) {
-    return <div className="quota-banner muted small">授权状态加载中…</div>;
-  }
-  if (entitlement.pro_active) {
-    return (
-      <div className="quota-banner pro">
-        <strong>Pro 已激活</strong>
-        <span className="muted small">
-          {entitlement.license_email ?? "当前设备可无限下载"}
-        </span>
-      </div>
-    );
-  }
+  if (!entitlement || entitlement.pro_active) return null;
+
   const used = entitlement.trial_used_count_cache;
   const remaining = entitlement.trial_remaining_count_cache;
   return (
