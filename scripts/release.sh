@@ -203,15 +203,28 @@ if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
   echo "Delete or choose a new build number before releasing."
   exit 1
 fi
-REMOTE_TAG_STATUS=0
-git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1 || REMOTE_TAG_STATUS=$?
-if [[ "${REMOTE_TAG_STATUS}" -eq 0 ]]; then
+
+REMOTE_TAG_OUTPUT=""
+REMOTE_TAG_CHECKED=false
+for attempt in 1 2 3; do
+  if REMOTE_TAG_OUTPUT=$(git ls-remote --tags origin "refs/tags/${TAG}" 2>&1); then
+    REMOTE_TAG_CHECKED=true
+    break
+  fi
+  if [[ "${attempt}" -lt 3 ]]; then
+    echo "Remote tag check failed (attempt ${attempt}/3); retrying..."
+    sleep 2
+  fi
+done
+if [[ "${REMOTE_TAG_CHECKED}" != true ]]; then
+  echo "ERROR: could not verify whether remote tag exists: ${TAG}"
+  echo "${REMOTE_TAG_OUTPUT}"
+  echo "Check network/GitHub access, then retry."
+  exit 1
+fi
+if [[ -n "${REMOTE_TAG_OUTPUT}" ]]; then
   echo "ERROR: remote tag already exists: ${TAG}"
   echo "Do not reuse release tags; increment .buildnumber or delete the stale tag intentionally."
-  exit 1
-elif [[ "${REMOTE_TAG_STATUS}" -ne 2 ]]; then
-  echo "ERROR: could not verify whether remote tag exists: ${TAG}"
-  echo "Check network/GitHub access, then retry."
   exit 1
 fi
 
