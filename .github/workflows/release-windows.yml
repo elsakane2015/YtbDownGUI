@@ -79,10 +79,14 @@ jobs:
           YTBDOWN_RELEASE_CHANNEL: ${{ steps.ver.outputs.channel }}
         run: pnpm preflight:release
 
-      - name: Cache cargo registry + target
+      - name: Restore Rust cache (best effort)
         uses: Swatinem/rust-cache@v2
+        continue-on-error: true
         with:
           workspaces: "src-tauri -> target"
+          # Release tag builds must not be marked failed because an optional
+          # post-job cache upload failed. Manual runs can refresh the cache.
+          save-if: ${{ github.event_name == 'workflow_dispatch' }}
 
       - name: Build (no installer — we ship a portable zip ourselves)
         # `--no-bundle` skips MSI/NSIS generation; on Windows that gives us
