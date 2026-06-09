@@ -39,14 +39,14 @@ Public content on these sites (and any of the [1000+ sites yt-dlp supports](http
 
 1. Download the `.dmg` from the [Releases](https://github.com/elsakane2015/YtbDownGUI/releases) page.
 2. Open the `.dmg`, drag `YtbDownGUI.app` to `Applications`.
-3. Open the app. On macOS Sequoia 15.1+ you may see "damaged and can't be opened" or "cannot verify it is free of malware".
-4. Open Terminal and run:
+3. Open the app. Release bundles are notarized by Apple and should normally launch directly.
+4. If macOS still reports that the app is damaged or cannot be verified, open Terminal and run:
    ```bash
    xattr -dr com.apple.quarantine /Applications/YtbDownGUI.app
    ```
-5. Open the app again — it should launch normally.
+5. Open the app again.
 
-> The app is ad-hoc signed (no Apple Developer ID). The quarantine removal is a one-time step macOS requires for any app from outside the App Store.
+> The app is signed with an Apple Developer ID certificate and notarized by Apple. Normally the `xattr` command is unnecessary; it is temporarily retained as a fallback if macOS still blocks the first launch.
 
 ### Windows
 
@@ -102,7 +102,7 @@ pnpm install
 pnpm tauri dev
 
 # One-shot release: bumps .buildnumber, builds universal .app + .dmg,
-# patches CFBundleVersion, re-signs ad-hoc, commits + pushes, creates
+# sets CFBundleVersion, signs with Developer ID, commits + pushes, creates
 # the GitHub Release (with DMG), and triggers the Windows Actions build.
 # Requires gh CLI to be installed/authenticated and production YTBDOWN_LICENSE_PUBLIC_KEY exported.
 # main keeps v<version>-b<build>; pro-dev uses pro-v<version>-b<build>.
@@ -168,7 +168,7 @@ in the **设置** tab footer as `v0.0.1 (002)`.
 - **No DRM**. Anything wrapped in Widevine / FairPlay (Tencent Video VIP movies, Netflix, etc.) can't be downloaded by any yt-dlp-based tool. This isn't a fixable bug.
 - **Embedded WebView compatibility** (largely resolved) — The login window injects a script to hide automation markers (`navigator.webdriver`); on Windows it also substitutes a real Chrome user-agent string. Bot-detection blocks from major sites are now rare. If a specific site still refuses to let you sign in inside the app, please open an issue.
 - **Live progress is via file polling**, not yt-dlp's stdout. yt-dlp is a PyInstaller bundle whose stdout is block-buffered on non-TTYs, and neither `PYTHONUNBUFFERED` nor PTY wrapping fixes it. File polling sees the `.part` file grow and gives a faithful percent + speed.
-- **macOS Sequoia 15.1+ requires at least ad-hoc signing** (macOS only). Intel Macs still work but the OS gate is stricter. On Windows, SmartScreen may warn on first launch — click **More info → Run anyway**.
+- **macOS release bundles use Developer ID signing and Apple notarization**. They should open normally; the quarantine removal command remains only as a fallback. Intel Macs can run the universal build. On Windows, SmartScreen may warn on first launch — click **More info → Run anyway**.
 
 ## License
 

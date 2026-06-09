@@ -7,8 +7,9 @@
 # - `main`/free releases keep the historical `v<ver>-b<build>` tag.
 # - `pro-dev` releases use `pro-v<ver>-b<build>` and show "Pro" before
 #   the version in release artifacts and the app footer.
-# - Post-build: patches CFBundleVersion in the .app's Info.plist, re-signs,
-#   then rebuilds the DMG (with an Applications shortcut for drag-install).
+# - macOS bundles are signed with the configured Developer ID Application
+#   identity. The final DMG is rebuilt with an Applications shortcut, signed,
+#   notarized through Apple, and stapled.
 # - Each run lands in its own folder under `releases/<tag>/` so
 #   older builds aren't overwritten.
 # - Automatically commits .buildnumber, pushes a release tag at the current
@@ -17,6 +18,10 @@
 #
 # Requirements:
 #   gh (GitHub CLI) must be installed and authenticated.
+#   The configured Developer ID Application certificate must be installed in
+#   the login keychain.
+#   A valid notarytool profile must exist in the configured file-based
+#   Keychain (defaults to AC_PASSWORD in the login keychain).
 #
 # Usage:
 #   bash scripts/release.sh        # auto: pro-dev -> Pro, otherwise free
@@ -43,6 +48,8 @@ Usage:
 
 Environment fallback:
   RELEASE_CHANNEL=pro|free|auto bash scripts/release.sh
+  NOTARY_PROFILE=AC_PASSWORD bash scripts/release.sh
+  NOTARY_KEYCHAIN=/path/to/login.keychain-db bash scripts/release.sh
 EOF
 }
 
@@ -114,6 +121,68 @@ fi
 export YTBDOWN_RELEASE_CHANNEL="${RELEASE_CHANNEL}"
 export YTBDOWN_BUILD_CHANNEL_LABEL="${CHANNEL_LABEL}"
 
+# Require a real Developer ID identity before the build number is mutated.
+# APPLE_SIGNING_IDENTITY can override the repository default when rotating
+# certificates or building on another authorized Mac.
+CONFIGURED_SIGNING_IDENTITY=$(node -p "require('./src-tauri/tauri.conf.json').bundle.macOS.signingIdentity || ''")
+MACOS_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:-${CONFIGURED_SIGNING_IDENTITY}}"
+if [[ -z "${MACOS_SIGNING_IDENTITY}" || "${MACOS_SIGNING_IDENTITY}" == "-" ]]; then
+  echo "ERROR: macOS release builds require a Developer ID Application signing identity."
+  exit 1
+fi
+if [[ "${MACOS_SIGNING_IDENTITY}" != "Developer ID Application:"* ]]; then
+  echo "ERROR: macOS release builds cannot use an Apple Development identity:"
+  echo "  ${MACOS_SIGNING_IDENTITY}"
+  exit 1
+fi
+if [[ "${MACOS_SIGNING_IDENTITY}" =~ \(([A-Z0-9]+)\)$ ]]; then
+  MACOS_TEAM_ID="${BASH_REMATCH[1]}"
+else
+  echo "ERROR: could not read Team ID from signing identity:"
+  echo "  ${MACOS_SIGNING_IDENTITY}"
+  exit 1
+fi
+if ! security find-identity -v -p codesigning | grep -F "\"${MACOS_SIGNING_IDENTITY}\"" >/dev/null; then
+  echo "ERROR: signing identity is not available in the keychain:"
+  echo "  ${MACOS_SIGNING_IDENTITY}"
+  exit 1
+fi
+export APPLE_SIGNING_IDENTITY="${MACOS_SIGNING_IDENTITY}"
+echo "Signing identity: ${MACOS_SIGNING_IDENTITY}"
+
+# Reuse the Apple ID + app-specific password credentials stored by notarytool.
+# The profile belongs to the Developer Team and can notarize multiple apps.
+NOTARY_PROFILE="${NOTARY_PROFILE:-AC_PASSWORD}"
+NOTARY_KEYCHAIN="${NOTARY_KEYCHAIN:-${HOME}/Library/Keychains/login.keychain-db}"
+if [[ ! -f "${NOTARY_KEYCHAIN}" ]]; then
+  echo "ERROR: notarytool Keychain file does not exist:"
+  echo "  ${NOTARY_KEYCHAIN}"
+  exit 1
+fi
+NOTARY_PROFILE_READY=false
+for attempt in 1 2 3; do
+  if xcrun notarytool history \
+    --keychain-profile "${NOTARY_PROFILE}" \
+    --keychain "${NOTARY_KEYCHAIN}" \
+    --output-format json >/dev/null; then
+    NOTARY_PROFILE_READY=true
+    break
+  fi
+  if [[ "${attempt}" -lt 3 ]]; then
+    echo "Notary profile validation failed (attempt ${attempt}/3); retrying..."
+    sleep 2
+  fi
+done
+if [[ "${NOTARY_PROFILE_READY}" != true ]]; then
+  echo "ERROR: notarytool Keychain profile is unavailable or invalid:"
+  echo "  ${NOTARY_PROFILE}"
+  echo "Keychain: ${NOTARY_KEYCHAIN}"
+  echo "Store or refresh it with:"
+  echo "  xcrun notarytool store-credentials ${NOTARY_PROFILE} --team-id ${MACOS_TEAM_ID} --keychain ${NOTARY_KEYCHAIN}"
+  exit 1
+fi
+echo "Notary profile: ${NOTARY_PROFILE} (${NOTARY_KEYCHAIN})"
+
 # Validate release-only requirements before mutating .buildnumber.
 pnpm preflight:release
 
@@ -150,7 +219,8 @@ echo "${BUILD_STR}" > "${BUILD_FILE}"
 echo "Building YtbDownGUI ${VERSION_LABEL} (Build ${BUILD_STR})…"
 
 # --- run tauri build ------------------------------------------------------
-pnpm tauri build --target universal-apple-darwin
+MACOS_BUILD_CONFIG="{\"bundle\":{\"macOS\":{\"bundleVersion\":\"${BUILD_STR}\"}}}"
+pnpm tauri build --target universal-apple-darwin --config "${MACOS_BUILD_CONFIG}"
 
 # --- locate output --------------------------------------------------------
 BUNDLE_DIR="${REPO_ROOT}/src-tauri/target/universal-apple-darwin/release/bundle"
@@ -160,13 +230,19 @@ if [[ ! -d "${APP}" ]]; then
   exit 1
 fi
 
-# --- patch CFBundleVersion ------------------------------------------------
-/usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${BUILD_STR}" "${APP}/Contents/Info.plist"
-echo "Patched CFBundleVersion = ${BUILD_STR}"
-
-# --- re-sign (Info.plist mutation invalidates the signature) -------------
-codesign --force --deep --sign - "${APP}"
-echo "Re-signed ad-hoc"
+# Tauri receives CFBundleVersion before bundling so no post-signature
+# Info.plist mutation is needed.
+ACTUAL_BUILD_STR=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "${APP}/Contents/Info.plist")
+if [[ "${ACTUAL_BUILD_STR}" != "${BUILD_STR}" ]]; then
+  echo "ERROR: expected CFBundleVersion ${BUILD_STR}, got ${ACTUAL_BUILD_STR}"
+  exit 1
+fi
+codesign --verify --deep --strict --verbose=2 "${APP}"
+if ! codesign -dvv "${APP}" 2>&1 | grep -F "Authority=${MACOS_SIGNING_IDENTITY}" >/dev/null; then
+  echo "ERROR: app was not signed with the expected Developer ID identity."
+  exit 1
+fi
+echo "Verified signed app (CFBundleVersion ${ACTUAL_BUILD_STR})"
 
 # --- archive folder for this release --------------------------------------
 RELEASE_DIR="${REPO_ROOT}/releases/${TAG}"
@@ -188,10 +264,63 @@ hdiutil create \
   -ov \
   -format UDZO \
   "${DMG_FINAL}" >/dev/null
-echo "DMG: ${DMG_FINAL}"
+codesign --force --timestamp --sign "${MACOS_SIGNING_IDENTITY}" "${DMG_FINAL}"
+codesign --verify --strict --verbose=2 "${DMG_FINAL}"
+if ! codesign -dvv "${DMG_FINAL}" 2>&1 | grep -F "Authority=${MACOS_SIGNING_IDENTITY}" >/dev/null; then
+  echo "ERROR: DMG was not signed with the expected Developer ID identity."
+  exit 1
+fi
+echo "Signed DMG: ${DMG_FINAL}"
 
-# Also drop the unsigned .app folder next to it for reference (handy when
-# debugging or re-signing without rebuilding).
+# --- notarize, staple, and verify the final distribution artifact ----------
+NOTARY_JSON="${RELEASE_DIR}/notarytool.json"
+NOTARY_ERR="${RELEASE_DIR}/notarytool.err"
+rm -f "${NOTARY_JSON}" "${NOTARY_ERR}"
+echo "Submitting DMG to Apple notarization..."
+set +e
+xcrun notarytool submit "${DMG_FINAL}" \
+  --keychain-profile "${NOTARY_PROFILE}" \
+  --keychain "${NOTARY_KEYCHAIN}" \
+  --wait \
+  --timeout 30m \
+  --output-format json >"${NOTARY_JSON}" 2>"${NOTARY_ERR}"
+NOTARY_RC=$?
+set -e
+cat "${NOTARY_ERR}" >&2
+cat "${NOTARY_JSON}"
+
+NOTARY_STATUS=$(node -e '
+  try {
+    const result = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    process.stdout.write(result.status || "");
+  } catch {}
+' "${NOTARY_JSON}")
+NOTARY_ID=$(node -e '
+  try {
+    const result = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    process.stdout.write(result.id || "");
+  } catch {}
+' "${NOTARY_JSON}")
+if [[ "${NOTARY_RC}" -ne 0 || "${NOTARY_STATUS}" != "Accepted" ]]; then
+  echo "ERROR: Apple notarization failed with status: ${NOTARY_STATUS:-unknown}"
+  if [[ -n "${NOTARY_ID}" ]]; then
+    echo "Inspect the log with:"
+    echo "  xcrun notarytool log ${NOTARY_ID} --keychain-profile ${NOTARY_PROFILE} --keychain ${NOTARY_KEYCHAIN}"
+  fi
+  exit 1
+fi
+
+xcrun stapler staple "${DMG_FINAL}"
+xcrun stapler validate "${DMG_FINAL}"
+spctl --assess \
+  --type open \
+  --context context:primary-signature \
+  --verbose=4 \
+  "${DMG_FINAL}"
+spctl --assess --type execute --verbose=4 "${APP}"
+echo "Notarized and stapled DMG: ${DMG_FINAL}"
+
+# Also drop the signed .app folder next to it for reference.
 ditto "${APP}" "${RELEASE_DIR}/YtbDownGUI.app" 2>/dev/null || true
 
 # Tauri's own bundle/dmg output (without the Applications shortcut) is left
@@ -216,7 +345,7 @@ echo "Pushed tag: ${TAG}"
 # The Windows GitHub Actions workflow was triggered by the pushed tag. It will
 # attach its zip to this release once the Windows build finishes.
 RELEASE_NOTES="## macOS
-下载 \`.dmg\`，拖入 Applications，首次打开运行：
+下载 \`.dmg\` 并拖入 Applications。如果首次打开仍被系统拦截，可运行：
 \`\`\`bash
 xattr -dr com.apple.quarantine /Applications/YtbDownGUI.app
 \`\`\`

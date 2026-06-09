@@ -39,14 +39,14 @@
 
 1. 从 [Releases](https://github.com/elsakane2015/YtbDownGUI/releases) 页面下载 `.dmg`。
 2. 双击 `.dmg`，把 `YtbDownGUI.app` 拖到 `Applications` 文件夹。
-3. 打开 App。macOS Sequoia 15.1+ 可能会提示「已损坏，无法打开」或「无法验证此 App 是否包含恶意软件」。
-4. 打开"终端"运行下面这条命令一次：
+3. 打开 App。发布包已完成 Apple 公证，正常情况下可以直接启动。
+4. 如果系统仍提示「已损坏，无法打开」或「无法验证此 App 是否包含恶意软件」，打开"终端"运行下面这条命令一次：
    ```bash
    xattr -dr com.apple.quarantine /Applications/YtbDownGUI.app
    ```
-5. 再次打开应该正常启动。
+5. 再次打开 App。
 
-> App 用的是 ad-hoc 签名（没有 Apple Developer ID 公证）。这条 `xattr` 是 macOS 对 App Store 之外的应用首次打开时的一次性要求。
+> App 使用 Apple Developer ID 证书签名并完成 Apple 公证。正常情况下不需要运行 `xattr`；该命令暂时保留作为首次打开仍被系统拦截时的兜底。
 
 ### Windows
 
@@ -101,7 +101,7 @@ pnpm install
 pnpm tauri dev
 
 # 正式 release：自动 .buildnumber +1，构建 universal .app + .dmg，
-# 修补 CFBundleVersion，ad-hoc 重签名，commit + push，
+# 设置 CFBundleVersion，使用 Developer ID 签名，commit + push，
 # 创建 GitHub Release（含 DMG），触发 Windows GitHub Actions 构建。
 # 需要 gh CLI 已登录，并且已导出生产 YTBDOWN_LICENSE_PUBLIC_KEY。
 # main 分支保持 v<版本>-b<build>；pro-dev 分支使用 pro-v<版本>-b<build>。
@@ -167,7 +167,7 @@ Xcode 风格的 marketing version + build number。
 - **不支持 DRM 内容**。任何被 Widevine / FairPlay 加密的内容（腾讯 VIP 影视、Netflix 等）任何 yt-dlp 类工具都下不了。这是底层限制，不是 bug。
 - **内嵌 WebView 兼容性**（历史问题，现已基本解决）— App 会在登录窗口注入脚本隐藏自动化特征（`navigator.webdriver`），Windows 端另换用真实 Chrome UA，主流网站的 bot 检测拦截问题已大幅改善。如遇特定站点仍无法在 App 内完成登录，请在 issue 中反馈。
 - **进度条数据来自文件轮询而不是 yt-dlp 实时进度**。yt-dlp 是 PyInstaller 打包的，stdout 在非 TTY 下深度块缓冲，`PYTHONUNBUFFERED` / PTY 都救不了。轮询 `.part` 文件大小可以给出准确的百分比和速度，但比 yt-dlp 原生进度晚几百毫秒。
-- **macOS Sequoia 15.1+ 强制至少 ad-hoc 签名才能开**（macOS 专属）。Intel Mac 也可以跑 universal 包，但 OS 的拦截更严格一点。Windows 无此限制，但首次运行 SmartScreen 会弹出提示，点"仍要运行"即可。
+- **macOS 发布包使用 Developer ID 签名并完成 Apple 公证**。正常情况下可直接打开；安装说明中的 quarantine 移除命令仅作为异常兜底。Intel Mac 也可以运行 universal 包。Windows 首次运行时 SmartScreen 可能会弹出提示，点"仍要运行"即可。
 
 ## 许可证
 
