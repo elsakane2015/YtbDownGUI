@@ -99,8 +99,12 @@ jobs:
       - name: Verify embedded license public key
         shell: pwsh
         run: |
-          & "src-tauri/target/x86_64-pc-windows-msvc/release/ytbdowngui.exe" --verify-license-config
-          if ($LASTEXITCODE -ne 0) {
+          # YtbDownGUI is a Windows GUI-subsystem executable. PowerShell may
+          # leave $LASTEXITCODE unset even though the process ran and printed
+          # its successful self-check, so inspect the Process exit code
+          # directly instead.
+          $process = Start-Process -FilePath "src-tauri/target/x86_64-pc-windows-msvc/release/ytbdowngui.exe" -ArgumentList "--verify-license-config" -Wait -PassThru -NoNewWindow
+          if ($process.ExitCode -ne 0) {
               throw "Release executable contains an invalid license public key"
           }
 
