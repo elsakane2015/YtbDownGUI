@@ -80,7 +80,7 @@ pnpm tauri dev
 ```
 
 - `YTBDOWN_LICENSE_SERVER_URL`: optional; defaults to `https://license.ytbdown.litotime.com`.
-- `YTBDOWN_LICENSE_PUBLIC_KEY`: required for production Tauri builds; development builds may leave it empty, but Pro tokens cannot be verified.
+- `YTBDOWN_LICENSE_PUBLIC_KEY`: development-only override for a local verification key. Release builds always use `src-tauri/license-public-key.pem` so a development key cannot leak into production artifacts.
 - `.env.example` is a placeholder reference only. Tauri / Cargo does not auto-load it, so export values in your shell, CI job, or release script.
 
 ### macOS
@@ -104,7 +104,7 @@ pnpm tauri dev
 # One-shot release: bumps .buildnumber, builds universal .app + .dmg,
 # sets CFBundleVersion, signs with Developer ID, commits + pushes, creates
 # the GitHub Release (with DMG), and triggers the Windows Actions build.
-# Requires gh CLI to be installed/authenticated and production YTBDOWN_LICENSE_PUBLIC_KEY exported.
+# Requires gh CLI to be installed/authenticated. The public production verification key is pinned in the repository.
 # main keeps v<version>-b<build>; pro-dev uses pro-v<version>-b<build>.
 pnpm preflight:release
 bash scripts/release.sh -pro   # Build Pro on pro-dev

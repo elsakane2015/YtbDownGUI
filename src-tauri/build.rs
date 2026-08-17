@@ -25,17 +25,22 @@ fn main() {
     println!("cargo:rustc-env=LICENSE_SERVER_URL={license_server_url}");
     println!("cargo:rerun-if-env-changed=YTBDOWN_LICENSE_SERVER_URL");
 
-    let license_public_key = normalize_public_key_for_embedding(
-        &std::env::var("YTBDOWN_LICENSE_PUBLIC_KEY").unwrap_or_default(),
-    );
-    if std::env::var("TAURI_ENV_PLATFORM").is_ok()
-        && !cfg!(debug_assertions)
-        && license_public_key.trim().is_empty()
+    // The verification key is public information and ships inside every app
+    // binary. Keep the production copy in source control so release builds
+    // cannot accidentally inherit a local License Server's development key.
+    let production_public_key = include_str!("license-public-key.pem");
+    let configured_public_key = std::env::var("YTBDOWN_LICENSE_PUBLIC_KEY").unwrap_or_default();
+    let is_debug_profile = std::env::var("PROFILE").is_ok_and(|profile| profile == "debug");
+    let license_public_key_source = if is_debug_profile && !configured_public_key.trim().is_empty()
     {
-        panic!("YTBDOWN_LICENSE_PUBLIC_KEY is required for production builds");
-    }
+        configured_public_key.as_str()
+    } else {
+        production_public_key
+    };
+    let license_public_key = normalize_public_key_for_embedding(license_public_key_source);
     println!("cargo:rustc-env=LICENSE_PUBLIC_KEY={license_public_key}");
     println!("cargo:rerun-if-env-changed=YTBDOWN_LICENSE_PUBLIC_KEY");
+    println!("cargo:rerun-if-changed=license-public-key.pem");
 
     tauri_build::build()
 }

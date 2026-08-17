@@ -147,25 +147,25 @@ function validateLicenseConfig() {
     addCheck("License Server URL points to production");
   }
 
-  const publicKey = normalizePem(env.YTBDOWN_LICENSE_PUBLIC_KEY || "");
+  const publicKey = normalizePem(readText("src-tauri/license-public-key.pem"));
   if (!publicKey) {
-    addError("license_public_key", "YTBDOWN_LICENSE_PUBLIC_KEY is required for release builds.");
+    addError("license_public_key", "src-tauri/license-public-key.pem is required for release builds.");
     return;
   }
   if (publicKey.includes("...") || publicKey.toLowerCase().includes("example")) {
-    addError("license_public_key", "YTBDOWN_LICENSE_PUBLIC_KEY still looks like a placeholder.");
+    addError("license_public_key", "The committed production license public key looks like a placeholder.");
     return;
   }
 
   try {
     const key = createPublicKey(publicKey);
     if (key.asymmetricKeyType !== "ed25519") {
-      addError("license_public_key", "YTBDOWN_LICENSE_PUBLIC_KEY must be an Ed25519 SPKI public key.");
+      addError("license_public_key", "The committed production license key must be an Ed25519 SPKI public key.");
       return;
     }
-    addCheck("License public key is a valid Ed25519 SPKI public key");
+    addCheck("Committed production license key is a valid Ed25519 SPKI public key");
   } catch (error) {
-    addError("license_public_key", `YTBDOWN_LICENSE_PUBLIC_KEY is invalid: ${error.message}`);
+    addError("license_public_key", `The committed production license key is invalid: ${error.message}`);
   }
 }
 

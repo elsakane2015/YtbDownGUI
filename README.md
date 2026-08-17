@@ -79,7 +79,7 @@ pnpm tauri dev
 ```
 
 - `YTBDOWN_LICENSE_SERVER_URL`：可选；未设置时使用 `https://license.ytbdown.litotime.com`。
-- `YTBDOWN_LICENSE_PUBLIC_KEY`：production Tauri 构建必填；dev 可留空，但无法验证 Pro token。
+- `YTBDOWN_LICENSE_PUBLIC_KEY`：只用于 dev 覆盖本地验签公钥；正式构建固定使用仓库内的 `src-tauri/license-public-key.pem`，避免误打入开发密钥。
 - `.env.example` 只记录占位示例，Tauri / Cargo 不会自动加载它；请在 shell、CI 或发布脚本里显式导出。
 
 ### macOS
@@ -103,7 +103,7 @@ pnpm tauri dev
 # 正式 release：自动 .buildnumber +1，构建 universal .app + .dmg，
 # 设置 CFBundleVersion，使用 Developer ID 签名，commit + push，
 # 创建 GitHub Release（含 DMG），触发 Windows GitHub Actions 构建。
-# 需要 gh CLI 已登录，并且已导出生产 YTBDOWN_LICENSE_PUBLIC_KEY。
+# 需要 gh CLI 已登录；生产验签公钥由仓库中的公开 PEM 固定提供。
 # main 分支保持 v<版本>-b<build>；pro-dev 分支使用 pro-v<版本>-b<build>。
 pnpm preflight:release
 bash scripts/release.sh -pro   # 在 pro-dev 上构建 Pro

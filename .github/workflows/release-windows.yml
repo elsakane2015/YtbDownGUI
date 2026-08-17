@@ -75,7 +75,6 @@ jobs:
       - name: Release preflight
         env:
           YTBDOWN_LICENSE_SERVER_URL: https://license.ytbdown.litotime.com
-          YTBDOWN_LICENSE_PUBLIC_KEY: ${{ secrets.YTBDOWN_LICENSE_PUBLIC_KEY }}
           YTBDOWN_RELEASE_CHANNEL: ${{ steps.ver.outputs.channel }}
         run: pnpm preflight:release
 
@@ -95,7 +94,6 @@ jobs:
         env:
           YTBDOWN_BUILD_CHANNEL_LABEL: ${{ steps.ver.outputs.channel_label }}
           YTBDOWN_LICENSE_SERVER_URL: https://license.ytbdown.litotime.com
-          YTBDOWN_LICENSE_PUBLIC_KEY: ${{ secrets.YTBDOWN_LICENSE_PUBLIC_KEY }}
         run: pnpm tauri build --target x86_64-pc-windows-msvc --no-bundle
 
       - name: Verify embedded license public key
