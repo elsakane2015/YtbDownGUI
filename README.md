@@ -14,7 +14,7 @@
 - **播放列表 / 频道批量下载** — 粘贴 playlist 或 channel URL → 过滤条目（日期范围 / 关键词 / 条目上限）→ 复选框勾选 → 应用统一画质 → 整批下载。
 - **三段式画质选择** — H.264 / VP9 / AV1 编码偏好、480p–4K 分辨率上限、音频编码独立选择、mp4 / mkv 容器。
 - **字幕** — 每个视频探测后展示可用语言列表（手动字幕 + YouTube 自动字幕独立勾选），可选独立 `.srt` 文件或嵌入到容器。
-- **二进制内置** — 打包 yt-dlp 2026.03.17 + ffmpeg 7.1.1，朋友机器零依赖。macOS 为 universal（ARM + Intel），Windows 为 x64 portable zip。
+- **二进制内置** — 打包 yt-dlp 2026.07.04 + ffmpeg 7.1.1，朋友机器零依赖。macOS 为 universal（ARM + Intel），Windows 为 x64 portable zip。
 - **App 内 yt-dlp 更新** — 启动时检查 GitHub 是否有新版，有则弹蓝色横幅"更新"按钮，自动下载并替换本地二进制（macOS 存至 `~/Library/Application Support/com.litotime.ytbdowngui/bin/`，Windows 存至 `%APPDATA%\com.litotime.ytbdowngui\bin\` 或 portable 模式下 `<程序目录>\data\bin\`）。
 - **原生风格 UI** — macOS：交通灯标题栏、SF 字体、跟随系统亮暗模式、标题栏可拖动。Windows：标准窗口装饰，跟随系统亮暗模式。
 - **状态持久化** — 任务列表跨 App 重启保留；设置以 JSON 文件保存。

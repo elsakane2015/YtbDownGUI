@@ -14,7 +14,7 @@ OUT="${ROOT_DIR}/src-tauri/binaries"
 mkdir -p "${OUT}"
 
 # Versions — bump these to update bundled binaries.
-YTDLP_VERSION="2026.03.17"           # https://github.com/yt-dlp/yt-dlp/releases
+YTDLP_VERSION="2026.07.04"           # https://github.com/yt-dlp/yt-dlp/releases
 FFMPEG_BUILD="7.1"                    # https://www.osxexperts.net/ (static universal builds)
 
 # --- yt-dlp ----------------------------------------------------------------
@@ -25,7 +25,18 @@ FFMPEG_BUILD="7.1"                    # https://www.osxexperts.net/ (static univ
 YTDLP_URL="https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/yt-dlp_macos"
 YTDLP_TMP="${OUT}/.yt-dlp_macos.tmp"
 
-if [[ ! -f "${OUT}/yt-dlp-aarch64-apple-darwin" || ! -f "${OUT}/yt-dlp-x86_64-apple-darwin" || ! -f "${OUT}/yt-dlp-universal-apple-darwin" ]]; then
+YTDLP_NEEDS_REFRESH=false
+for ytdlp_bin in \
+  "${OUT}/yt-dlp-aarch64-apple-darwin" \
+  "${OUT}/yt-dlp-x86_64-apple-darwin" \
+  "${OUT}/yt-dlp-universal-apple-darwin"; do
+  if [[ ! -x "${ytdlp_bin}" || "$("${ytdlp_bin}" --version 2>/dev/null || true)" != "${YTDLP_VERSION}" ]]; then
+    YTDLP_NEEDS_REFRESH=true
+    break
+  fi
+done
+
+if [[ "${YTDLP_NEEDS_REFRESH}" == true ]]; then
   echo "[1/2] Downloading yt-dlp ${YTDLP_VERSION}…"
   curl -fL --progress-bar -o "${YTDLP_TMP}" "${YTDLP_URL}"
   chmod +x "${YTDLP_TMP}"
@@ -35,7 +46,7 @@ if [[ ! -f "${OUT}/yt-dlp-aarch64-apple-darwin" || ! -f "${OUT}/yt-dlp-x86_64-ap
   rm -f "${YTDLP_TMP}"
   echo "  → ${OUT}/yt-dlp-{aarch64,x86_64,universal}-apple-darwin"
 else
-  echo "[1/2] yt-dlp already present, skipping."
+  echo "[1/2] yt-dlp ${YTDLP_VERSION} already present, skipping."
 fi
 
 # --- ffmpeg ----------------------------------------------------------------

@@ -243,6 +243,50 @@ if [[ ! -d "${APP}" ]]; then
   exit 1
 fi
 
+# Tauri signs every external binary with Hardened Runtime. yt-dlp_macos is a
+# PyInstaller one-file executable and extracts Python.framework at runtime;
+# that embedded framework retains the upstream Team ID. Without this
+# sidecar-only entitlement, macOS library validation rejects it before yt-dlp
+# can start. Replace Tauri's already-signed copy with the pristine sidecar,
+# sign it with the entitlement, then reseal the outer app bundle.
+YTDLP_SOURCE="${REPO_ROOT}/src-tauri/binaries/yt-dlp-universal-apple-darwin"
+YTDLP_BUNDLED="${APP}/Contents/MacOS/yt-dlp"
+YTDLP_ENTITLEMENTS="${REPO_ROOT}/src-tauri/yt-dlp.entitlements.plist"
+for required_path in "${YTDLP_SOURCE}" "${YTDLP_BUNDLED}" "${YTDLP_ENTITLEMENTS}"; do
+  if [[ ! -f "${required_path}" ]]; then
+    echo "ERROR: required yt-dlp signing input is missing: ${required_path}"
+    exit 1
+  fi
+done
+cp "${YTDLP_SOURCE}" "${YTDLP_BUNDLED}"
+chmod 755 "${YTDLP_BUNDLED}"
+codesign \
+  --force \
+  --timestamp \
+  --options runtime \
+  --entitlements "${YTDLP_ENTITLEMENTS}" \
+  --sign "${MACOS_SIGNING_IDENTITY}" \
+  "${YTDLP_BUNDLED}"
+codesign \
+  --force \
+  --timestamp \
+  --options runtime \
+  --sign "${MACOS_SIGNING_IDENTITY}" \
+  "${APP}"
+
+YTDLP_LIBRARY_VALIDATION=$(codesign --display --xml --entitlements - "${YTDLP_BUNDLED}" 2>/dev/null \
+  | plutil -extract 'com\.apple\.security\.cs\.disable-library-validation' raw -o - -)
+if [[ "${YTDLP_LIBRARY_VALIDATION}" != "true" ]]; then
+  echo "ERROR: bundled yt-dlp is missing the library-validation entitlement."
+  exit 1
+fi
+SIGNED_YTDLP_VERSION=$("${YTDLP_BUNDLED}" --version)
+if [[ -z "${SIGNED_YTDLP_VERSION}" ]]; then
+  echo "ERROR: signed bundled yt-dlp did not return a version."
+  exit 1
+fi
+echo "Verified signed yt-dlp ${SIGNED_YTDLP_VERSION} with PyInstaller library loading enabled"
+
 # Tauri receives CFBundleVersion before bundling so no post-signature
 # Info.plist mutation is needed.
 ACTUAL_BUILD_STR=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "${APP}/Contents/Info.plist")

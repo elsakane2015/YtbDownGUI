@@ -8,6 +8,7 @@ import { cwd, env, exit, platform } from "node:process";
 
 const EXPECTED_PRODUCT_NAME = "YtbDownGUI";
 const EXPECTED_IDENTIFIER = "com.litotime.ytbdowngui";
+const EXPECTED_YTDLP_VERSION = "2026.07.04";
 const PRODUCTION_LICENSE_URL = "https://license.ytbdown.litotime.com";
 const PRO_MIN_VERSION = "1.0.1";
 
@@ -194,6 +195,27 @@ function validateSidecars() {
     addError("sidecars_missing", `Missing release sidecar binaries: ${missing.join(", ")}.`);
   } else {
     addCheck(`Release sidecar binaries are present for ${platform}`);
+
+    const ytdlpPath =
+      platform === "win32"
+        ? "src-tauri/binaries/yt-dlp-x86_64-pc-windows-msvc.exe"
+        : "src-tauri/binaries/yt-dlp-universal-apple-darwin";
+    try {
+      const installedVersion = execFileSync(join(root, ytdlpPath), ["--version"], {
+        cwd: root,
+        encoding: "utf8",
+      }).trim();
+      if (installedVersion !== EXPECTED_YTDLP_VERSION) {
+        addError(
+          "ytdlp_version",
+          `Expected yt-dlp ${EXPECTED_YTDLP_VERSION}, got ${installedVersion || "unknown"}. Run the platform fetch-binaries script.`,
+        );
+      } else {
+        addCheck(`yt-dlp sidecar is pinned at ${EXPECTED_YTDLP_VERSION}`);
+      }
+    } catch (error) {
+      addError("ytdlp_version", `Could not execute bundled yt-dlp: ${error.message}`);
+    }
   }
 }
 

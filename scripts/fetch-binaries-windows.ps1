@@ -1,7 +1,7 @@
 # Fetch yt-dlp.exe and ffmpeg.exe for Windows x64 and place them in
 # src-tauri/binaries/ with the Tauri sidecar naming convention.
 #
-# Re-runnable — skips files that already exist.
+# Re-runnable — refreshes yt-dlp when the pinned version changes.
 # Equivalent to scripts/fetch-binaries.sh but for Windows.
 #
 # Usage (from repo root):
@@ -15,7 +15,7 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Out = Join-Path $RepoRoot "src-tauri\binaries"
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
 
-$YtdlpVersion = "2026.03.17"
+$YtdlpVersion = "2026.07.04"
 $FfmpegVersion = "7.1.1"
 
 # --- yt-dlp ---------------------------------------------------------------
@@ -23,12 +23,18 @@ $FfmpegVersion = "7.1.1"
 $YtdlpUrl = "https://github.com/yt-dlp/yt-dlp/releases/download/$YtdlpVersion/yt-dlp.exe"
 $YtdlpDst = Join-Path $Out "yt-dlp-x86_64-pc-windows-msvc.exe"
 
-if (-not (Test-Path $YtdlpDst)) {
+$InstalledYtdlpVersion = if (Test-Path $YtdlpDst) {
+    try { (& $YtdlpDst --version | Select-Object -First 1).Trim() } catch { "" }
+} else {
+    ""
+}
+
+if ($InstalledYtdlpVersion -ne $YtdlpVersion) {
     Write-Host "[1/2] Downloading yt-dlp $YtdlpVersion (Windows x64)…"
     Invoke-WebRequest -Uri $YtdlpUrl -OutFile $YtdlpDst
     Write-Host "  -> $YtdlpDst"
 } else {
-    Write-Host "[1/2] yt-dlp already present, skipping."
+    Write-Host "[1/2] yt-dlp $YtdlpVersion already present, skipping."
 }
 
 # --- ffmpeg ---------------------------------------------------------------

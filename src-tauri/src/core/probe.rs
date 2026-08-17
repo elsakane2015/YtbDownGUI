@@ -380,11 +380,7 @@ async fn run_yt_dlp_dump_json(
             }
             CommandEvent::Terminated(p) => {
                 if p.code != Some(0) {
-                    return Err(AppError::Other(format!(
-                        "yt-dlp exit {:?}: {}",
-                        p.code,
-                        stderr.lines().last().unwrap_or("").trim()
-                    )));
+                    return Err(AppError::Other(friendly_probe_error(p.code, &stderr)));
                 }
                 break;
             }
@@ -394,6 +390,21 @@ async fn run_yt_dlp_dump_json(
     let _ = stderr;
     let _ = app.emit::<&str>("probe:status", "");
     Ok(stdout)
+}
+
+fn friendly_probe_error(exit_code: Option<i32>, stderr: &str) -> String {
+    if stderr.contains("[BiliBili]")
+        && stderr.contains("HTTP Error 412")
+        && stderr.contains("Precondition Failed")
+    {
+        return "Bilibili 拒绝了当前请求（HTTP 412）。请先更新顶部提示的 yt-dlp；若已是最新版，请到“账号”登录 Bilibili 后重试，并确保登录与下载使用同一网络。".into();
+    }
+
+    format!(
+        "yt-dlp exit {:?}: {}",
+        exit_code,
+        stderr.lines().last().unwrap_or("").trim()
+    )
 }
 
 /// Translate a yt-dlp stderr/status line into a short Chinese phrase we want
@@ -425,4 +436,24 @@ fn friendly_probe_status(line: &str) -> Option<String> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::friendly_probe_error;
+
+    #[test]
+    fn explains_bilibili_412_in_chinese() {
+        let stderr = "ERROR: [BiliBili] abc: Unable to download JSON metadata: HTTP Error 412: Precondition Failed";
+        let message = friendly_probe_error(Some(1), stderr);
+        assert!(message.contains("Bilibili 拒绝了当前请求"));
+        assert!(message.contains("更新"));
+        assert!(message.contains("账号"));
+    }
+
+    #[test]
+    fn keeps_the_last_line_for_other_errors() {
+        let message = friendly_probe_error(Some(2), "noise\nERROR: unsupported URL");
+        assert_eq!(message, "yt-dlp exit Some(2): ERROR: unsupported URL");
+    }
 }

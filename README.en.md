@@ -14,7 +14,7 @@ The differentiator from existing yt-dlp wrappers is an **embedded login WebView*
 - **Playlist / channel batch** — paste a playlist or channel URL, filter entries (date range / keyword / max rows), tick the ones you want, apply a unified quality preset, download all at once.
 - **Three-section format picker** — H.264 / VP9 / AV1 codec preference, 480p–4K resolution cap, separate audio codec choice, mp4 / mkv container.
 - **Subtitles** — pick from each video's available languages (manual + YouTube auto-captions independently), choose between sidecar `.srt` files or embedded into the container.
-- **Bundled binaries** — yt-dlp 2026.03.17 and ffmpeg 7.1.1 ship with the app. Zero dependencies on your friend's machine. macOS ships as a universal binary (ARM + Intel); Windows ships as an x64 portable zip.
+- **Bundled binaries** — yt-dlp 2026.07.04 and ffmpeg 7.1.1 ship with the app. Zero dependencies on your friend's machine. macOS ships as a universal binary (ARM + Intel); Windows ships as an x64 portable zip.
 - **In-app yt-dlp updates** — on startup, checks GitHub for newer yt-dlp; if available a blue banner lets you update in one click. New binary is saved to `~/Library/Application Support/com.litotime.ytbdowngui/bin/` on macOS, or `%APPDATA%\com.litotime.ytbdowngui\bin\` on Windows (portable mode: `<exe-dir>\data\bin\`).
 - **Native-feeling UI** — macOS: traffic-light title bar, system font, dark mode follows the OS, draggable toolbar. Windows: standard window chrome, dark mode follows the OS.
 - **Persistent state** — job history survives app restarts; settings stored as plain JSON.
