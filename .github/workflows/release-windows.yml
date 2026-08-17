@@ -98,6 +98,14 @@ jobs:
           YTBDOWN_LICENSE_PUBLIC_KEY: ${{ secrets.YTBDOWN_LICENSE_PUBLIC_KEY }}
         run: pnpm tauri build --target x86_64-pc-windows-msvc --no-bundle
 
+      - name: Verify embedded license public key
+        shell: pwsh
+        run: |
+          & "src-tauri/target/x86_64-pc-windows-msvc/release/ytbdowngui.exe" --verify-license-config
+          if ($LASTEXITCODE -ne 0) {
+              throw "Release executable contains an invalid license public key"
+          }
+
       - name: Stage portable bundle
         id: stage
         shell: pwsh

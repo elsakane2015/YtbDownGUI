@@ -9,6 +9,10 @@ use crate::core::settings::SettingsStore;
 use std::time::Duration;
 use tauri::Manager;
 
+pub fn verify_embedded_license_config() -> Result<(), String> {
+    core::entitlement::validate_embedded_public_key()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()

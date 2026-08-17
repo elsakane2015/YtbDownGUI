@@ -5193,7 +5193,7 @@ dependencies = [
 
 [[package]]
 name = "ytbdowngui"
-version = "1.0.2"
+version = "1.0.3"
 dependencies = [
  "cookie",
  "jsonwebtoken",

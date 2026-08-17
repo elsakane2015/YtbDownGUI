@@ -25,7 +25,9 @@ fn main() {
     println!("cargo:rustc-env=LICENSE_SERVER_URL={license_server_url}");
     println!("cargo:rerun-if-env-changed=YTBDOWN_LICENSE_SERVER_URL");
 
-    let license_public_key = std::env::var("YTBDOWN_LICENSE_PUBLIC_KEY").unwrap_or_default();
+    let license_public_key = normalize_public_key_for_embedding(
+        &std::env::var("YTBDOWN_LICENSE_PUBLIC_KEY").unwrap_or_default(),
+    );
     if std::env::var("TAURI_ENV_PLATFORM").is_ok()
         && !cfg!(debug_assertions)
         && license_public_key.trim().is_empty()
@@ -36,6 +38,18 @@ fn main() {
     println!("cargo:rerun-if-env-changed=YTBDOWN_LICENSE_PUBLIC_KEY");
 
     tauri_build::build()
+}
+
+/// Cargo build-script directives are line based. Keep the PEM in a single
+/// directive by canonicalising real or escaped newlines to literal `\n`;
+/// the runtime restores them before parsing the key.
+fn normalize_public_key_for_embedding(value: &str) -> String {
+    value
+        .replace("\\n", "\n")
+        .replace("\r\n", "\n")
+        .replace('\r', "\n")
+        .trim()
+        .replace('\n', "\\n")
 }
 
 fn infer_git_build_channel() -> Option<String> {

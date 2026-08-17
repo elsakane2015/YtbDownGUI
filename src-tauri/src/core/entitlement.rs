@@ -790,6 +790,20 @@ fn normalize_public_key(value: &str) -> String {
     value.replace("\\n", "\n").trim().to_string()
 }
 
+pub fn validate_embedded_public_key() -> Result<(), String> {
+    let public_key = normalize_public_key(env!("LICENSE_PUBLIC_KEY"));
+    validate_public_key_material(&public_key)
+}
+
+fn validate_public_key_material(public_key: &str) -> Result<(), String> {
+    if public_key.trim().is_empty() {
+        return Err("public_key_missing".into());
+    }
+    DecodingKey::from_ed_pem(public_key.as_bytes())
+        .map(|_| ())
+        .map_err(|error| format!("public_key_invalid: {error}"))
+}
+
 fn http_error(error: reqwest::Error) -> AppError {
     AppError::Other(
         serde_json::json!({
@@ -853,6 +867,13 @@ mod tests {
 
     const TEST_PRIVATE_KEY: &str = "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIA7zL6eM/tNB2W5iXqP5UwBeNNnlFinprAJIyH01gko7\n-----END PRIVATE KEY-----";
     const TEST_PUBLIC_KEY: &str = "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAPrX03lyKn6qKDyxzRGqDOeEztXtIYMzR0rRkOGdC+DQ=\n-----END PUBLIC KEY-----";
+
+    #[test]
+    fn accepts_real_and_escaped_pem_newlines() {
+        validate_public_key_material(TEST_PUBLIC_KEY).unwrap();
+        let escaped = TEST_PUBLIC_KEY.replace('\n', "\\n");
+        validate_public_key_material(&normalize_public_key(&escaped)).unwrap();
+    }
 
     #[derive(Serialize)]
     struct TestClaims<'a> {

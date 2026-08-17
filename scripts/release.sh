@@ -243,6 +243,12 @@ if [[ ! -d "${APP}" ]]; then
   exit 1
 fi
 
+# Smoke-test the exact release executable before packaging. This catches
+# truncated/malformed build-time public keys even when preflight validated the
+# source environment variable successfully.
+"${APP}/Contents/MacOS/ytbdowngui" --verify-license-config
+echo "Verified embedded license public key"
+
 # Tauri signs every external binary with Hardened Runtime. yt-dlp_macos is a
 # PyInstaller one-file executable and extracts Python.framework at runtime;
 # that embedded framework retains the upstream Team ID. Without this
