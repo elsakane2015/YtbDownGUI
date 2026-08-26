@@ -1,0 +1,73 @@
+name: YtbDownIOS
+
+options:
+  bundleIdPrefix: com.litotime
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "26.0"
+
+settings:
+  base:
+    DEVELOPMENT_TEAM: HCDD4TQBT8
+    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_IDENTITY: Apple Development
+    MARKETING_VERSION: 1.0.4
+    CURRENT_PROJECT_VERSION: 34
+    SWIFT_VERSION: 5.0
+    GENERATE_INFOPLIST_FILE: true
+
+targets:
+  YtbDownIOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Resources
+        buildPhase: resources
+      - path: PythonResources/app
+        type: folder
+        buildPhase: resources
+      - path: PythonResources/app_packages
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - framework: PythonResources/Python.xcframework
+        embed: true
+      - sdk: JavaScriptCore.framework
+      - sdk: Photos.framework
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: false
+        INFOPLIST_FILE: Support/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.litotime.ytbdowngui.ios
+        PRODUCT_MODULE_NAME: YtbDownIOS
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: false
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/PythonRuntime/YtbDownIOS-Bridging-Header.h
+        ENABLE_USER_SCRIPT_SANDBOXING: false
+    postBuildScripts:
+      - name: Install Embedded Python
+        basedOnDependencyAnalysis: false
+        script: |
+          set -e
+          if [ -z "${EXPANDED_CODE_SIGN_IDENTITY:-}" ]; then
+            export EXPANDED_CODE_SIGN_IDENTITY="-"
+            export EXPANDED_CODE_SIGN_IDENTITY_NAME="Ad Hoc"
+          fi
+          source "$PROJECT_DIR/PythonResources/Python.xcframework/build/utils.sh"
+          install_python "PythonResources/Python.xcframework" "app" "app_packages"
+    scheme:
+      testTargets:
+        - YtbDownIOSTests
+
+  YtbDownIOSTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: YtbDownIOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.litotime.ytbdowngui.ios.tests

@@ -1,0 +1,7 @@
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+PythonResources/Python.xcframework/
+__pycache__/
+*.py[cod]

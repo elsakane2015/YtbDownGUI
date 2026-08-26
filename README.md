@@ -2,7 +2,7 @@
 
 > **中文** · [English](./README.en.md)
 
-基于 [yt-dlp](https://github.com/yt-dlp/yt-dlp) + [ffmpeg](https://ffmpeg.org/) 的跨平台 GUI 视频下载器（macOS + Windows），用 Tauri v2 (Rust + React) 构建。
+基于 [yt-dlp](https://github.com/yt-dlp/yt-dlp) + [ffmpeg](https://ffmpeg.org/) 的跨平台 GUI 视频下载器（macOS + Windows），用 Tauri v2 (Rust + React) 构建。仓库根目录的 [`ios/`](./ios/) 另含独立维护的原生 SwiftUI iPhone/iPad 工程。
 
 它跟现有的 yt-dlp 命令行包装最大的不同是 **内嵌 WebView 登录**：在 App 内开一个窗口，像在浏览器里一样登录目标网站，App 自动接管 session cookies 喂给 yt-dlp。不需要再手动导出 `cookies.txt` 了。
 
@@ -144,6 +144,18 @@ pnpm tauri dev
 # 构建（不打 MSI/NSIS，直接输出 exe）
 pnpm tauri build --target x86_64-pc-windows-msvc --no-bundle
 ```
+
+### iOS
+
+iOS 版使用独立的原生 SwiftUI/Xcode 工程，不放在 Tauri 的自动生成目录中：
+
+```bash
+open ios/YtbDownIOS.xcodeproj
+```
+
+工程支持 iOS 16 及以上，已配置自动签名团队和 iPhone/iPad target。iOS 版使用内嵌 CPython + yt-dlp + JavaScriptCore 在 App 进程内解析页面；YouTube 使用同一内嵌网络栈和本机 PO Token 下载，其他网站使用后台 URLSession，并通过 AVFoundation 在 iPhone 本地合并 H.264/HEVC + AAC 音视频；不依赖桌面端或中转服务器。已在真机实测公开 YouTube 视频的清晰度解析与完整下载。
+
+当前通常最高支持约 1080p，暂不支持账号登录、DRM、播放列表、字幕及 VP9/AV1/Opus 等需要 ffmpeg 的格式。首次 clone 需要运行 `./ios/scripts/fetch-python-runtime.sh` 恢复被 Git 忽略的 Python XCFramework。真机自签、格式限制和 GPLv3 注意事项见 [`ios/README.md`](./ios/README.md)。
 
 ### 版本号体系
 

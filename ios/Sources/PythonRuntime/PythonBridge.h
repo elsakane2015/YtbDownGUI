@@ -1,0 +1,32 @@
+#ifndef PythonBridge_h
+#define PythonBridge_h
+
+/// Initializes the embedded interpreter (Python-Apple-support b14 layout).
+/// `resourcePath` = the app bundle's resource root; the bundled stdlib lives at
+/// `<resourcePath>/python` (PYTHONHOME, populated by the install_python build
+/// phase), pip packages at `<resourcePath>/app_packages`, and our own module at
+/// `<resourcePath>/app`. `caCertPath` = the certifi cacert.pem (embedded Python
+/// has no system trust store). Returns 0 on success.
+int keraunos_python_init(const char *resourcePath, const char *caCertPath);
+
+/// Calls keraunos_extract.extract(url, cookiefile=..., format_id=..., adaptive=...).
+/// formatID NULL/empty selects the default best-muxable stream (unchanged behavior).
+/// Returns a malloc'd UTF-8 JSON string the caller must free().
+char *keraunos_python_extract(const char *url, const char *cookieFilePath,
+                              const char *formatID, int adaptive);
+
+/// Calls keraunos_extract.list_formats(url, cookiefile=...). Returns a malloc'd UTF-8
+/// JSON string (a choices payload, a .ready payload, or an error payload) to free().
+char *keraunos_python_list_formats(const char *url, const char *cookieFilePath);
+
+/// Downloads one resolved media URL with embedded Python's network stack.
+/// Returns a malloc'd UTF-8 JSON result the caller must free().
+char *keraunos_python_download_track(const char *url, const char *headersJSON,
+                                     const char *destinationPath);
+
+// Implemented in Swift (@_cdecl). Evaluates JS via JavaScriptCore and returns a
+// malloc'd UTF-8 string the caller must free(). On JS error the string is prefixed
+// "__KERAUNOS_JS_ERROR__".
+char *keraunos_js_eval(const char *script, double timeoutMs);
+
+#endif
