@@ -1191,6 +1191,31 @@ function SubtitlePicker(props: {
 
 // ---- JobsList ----
 
+type JobSortOrder = "newest" | "oldest";
+
+const JOB_SORT_ORDER_STORAGE_KEY = "ytbdown.jobs.sort-order";
+
+function initialJobSortOrder(): JobSortOrder {
+  try {
+    return window.localStorage.getItem(JOB_SORT_ORDER_STORAGE_KEY) === "oldest"
+      ? "oldest"
+      : "newest";
+  } catch {
+    return "newest";
+  }
+}
+
+function orderJobs(jobs: DownloadJob[], order: JobSortOrder): DownloadJob[] {
+  const direction = order === "newest" ? -1 : 1;
+  return [...jobs].sort((a, b) => {
+    const createdAtDifference = a.created_at_ms - b.created_at_ms;
+    if (createdAtDifference !== 0) {
+      return createdAtDifference * direction;
+    }
+    return a.id.localeCompare(b.id) * direction;
+  });
+}
+
 function JobsList({
   jobs,
   onClearFinished,
@@ -1200,6 +1225,21 @@ function JobsList({
   onClearFinished: () => void;
   onRemove: (id: string) => void;
 }) {
+  const [sortOrder, setSortOrder] = useState<JobSortOrder>(initialJobSortOrder);
+  const sortedJobs = useMemo(
+    () => orderJobs(jobs, sortOrder),
+    [jobs, sortOrder],
+  );
+
+  const changeSortOrder = (next: JobSortOrder) => {
+    setSortOrder(next);
+    try {
+      window.localStorage.setItem(JOB_SORT_ORDER_STORAGE_KEY, next);
+    } catch {
+      // The selected order still applies for this session if storage is unavailable.
+    }
+  };
+
   if (jobs.length === 0) {
     return null;
   }
@@ -1215,14 +1255,32 @@ function JobsList({
     <section className="jobs">
       <div className="jobs-head">
         <h4>任务（{jobs.length}）</h4>
-        {finishedExists && (
-          <button className="secondary small" onClick={onClearFinished}>
-            清理已结束
-          </button>
-        )}
+        <div className="jobs-head-actions">
+          <div className="seg jobs-sort" aria-label="任务排序">
+            <button
+              className={sortOrder === "newest" ? "seg-btn active" : "seg-btn"}
+              onClick={() => changeSortOrder("newest")}
+              aria-pressed={sortOrder === "newest"}
+            >
+              最新在上
+            </button>
+            <button
+              className={sortOrder === "oldest" ? "seg-btn active" : "seg-btn"}
+              onClick={() => changeSortOrder("oldest")}
+              aria-pressed={sortOrder === "oldest"}
+            >
+              最旧在上
+            </button>
+          </div>
+          {finishedExists && (
+            <button className="secondary small" onClick={onClearFinished}>
+              清理已结束
+            </button>
+          )}
+        </div>
       </div>
       <ul className="jobs-list">
-        {jobs.map((j) => (
+        {sortedJobs.map((j) => (
           <JobRow key={j.id} job={j} onRemove={onRemove} />
         ))}
       </ul>
