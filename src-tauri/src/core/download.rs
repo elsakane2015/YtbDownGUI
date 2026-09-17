@@ -388,6 +388,29 @@ impl QueueManager {
         self.list()
     }
 
+    /// Remove a single terminal job from the visible history.
+    /// Active jobs must be canceled first so their worker and quota state
+    /// cannot become detached from the queue.
+    pub fn remove_job(&self, id: &str) -> AppResult<Vec<DownloadJob>> {
+        {
+            let mut jobs = self.inner.jobs.lock().unwrap();
+            match jobs.get(id) {
+                Some(job) if is_terminal_state(&job.state) => {
+                    jobs.remove(id);
+                }
+                Some(_) => {
+                    return Err(AppError::Other(
+                        "正在下载的任务需先取消，然后才能移除".into(),
+                    ));
+                }
+                None => {
+                    return Err(AppError::Other("任务不存在或已被移除".into()));
+                }
+            }
+        }
+        Ok(self.list())
+    }
+
     pub fn reconcile_quota_reservations(&self, app: &AppHandle) {
         let actions: Vec<(String, String, JobState)> = self
             .inner
@@ -1308,6 +1331,24 @@ fn now_ms() -> i64 {
 mod tests {
     use super::*;
 
+    fn test_job(id: &str, state: JobState) -> DownloadJob {
+        DownloadJob {
+            id: id.into(),
+            url: "https://example.com/video".into(),
+            title: None,
+            state,
+            progress: None,
+            error: None,
+            output_dir: "/tmp".into(),
+            output_path: None,
+            batch_id: None,
+            created_at_ms: 1,
+            completed_at_ms: None,
+            quota_reservation_id: None,
+            quota_reservation_settled: true,
+        }
+    }
+
     #[test]
     fn terminal_states_map_to_quota_settlement_actions() {
         assert_eq!(
@@ -1332,5 +1373,32 @@ mod tests {
     fn non_terminal_states_do_not_settle_quota() {
         assert_eq!(quota_settlement_action(&JobState::Pending), None);
         assert_eq!(quota_settlement_action(&JobState::Running), None);
+    }
+
+    #[test]
+    fn remove_job_removes_terminal_history_entry() {
+        let queue = QueueManager::new(1);
+        queue.inner.jobs.lock().unwrap().insert(
+            "failed-job".into(),
+            test_job("failed-job", JobState::Failed),
+        );
+
+        let remaining = queue.remove_job("failed-job").unwrap();
+
+        assert!(remaining.is_empty());
+    }
+
+    #[test]
+    fn remove_job_rejects_active_download() {
+        let queue = QueueManager::new(1);
+        queue.inner.jobs.lock().unwrap().insert(
+            "running-job".into(),
+            test_job("running-job", JobState::Running),
+        );
+
+        let error = queue.remove_job("running-job").unwrap_err().to_string();
+
+        assert!(error.contains("需先取消"));
+        assert_eq!(queue.list().len(), 1);
     }
 }

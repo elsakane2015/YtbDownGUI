@@ -15,7 +15,7 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Out = Join-Path $RepoRoot "src-tauri\binaries"
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
 
-$YtdlpVersion = "2026.07.04"
+$YtdlpVersion = "2026.08.19"
 $FfmpegVersion = "7.1.1"
 
 # --- yt-dlp ---------------------------------------------------------------

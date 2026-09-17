@@ -288,6 +288,9 @@ export const cancelBatch = (batchId: string) =>
 export const clearFinished = () =>
   invoke<DownloadJob[]>("clear_finished");
 
+export const removeJob = (id: string) =>
+  invoke<DownloadJob[]>("remove_job", { id });
+
 export const defaultDownloadDir = () => invoke<string>("default_download_dir");
 
 export const getEntitlementStatus = () =>

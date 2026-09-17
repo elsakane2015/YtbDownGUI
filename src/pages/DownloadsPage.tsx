@@ -17,6 +17,7 @@ import {
   openPath,
   pickFolder,
   probe,
+  removeJob,
   revealInFinder,
   syncFreeQuotaStatus,
   type DownloadJob,
@@ -377,6 +378,14 @@ export default function DownloadsPage() {
         onClearFinished={async () => {
           const next = await clearFinished();
           setJobs(next);
+        }}
+        onRemove={async (id) => {
+          try {
+            const next = await removeJob(id);
+            setJobs(next);
+          } catch (e) {
+            setProbeMsg(`移除任务失败：${e}`);
+          }
         }}
       />
     </div>
@@ -1185,9 +1194,11 @@ function SubtitlePicker(props: {
 function JobsList({
   jobs,
   onClearFinished,
+  onRemove,
 }: {
   jobs: DownloadJob[];
   onClearFinished: () => void;
+  onRemove: (id: string) => void;
 }) {
   if (jobs.length === 0) {
     return null;
@@ -1206,13 +1217,13 @@ function JobsList({
         <h4>任务（{jobs.length}）</h4>
         {finishedExists && (
           <button className="secondary small" onClick={onClearFinished}>
-            清理已完成
+            清理已结束
           </button>
         )}
       </div>
       <ul className="jobs-list">
         {jobs.map((j) => (
-          <JobRow key={j.id} job={j} />
+          <JobRow key={j.id} job={j} onRemove={onRemove} />
         ))}
       </ul>
     </section>
@@ -1243,7 +1254,13 @@ async function handleReveal(j: DownloadJob) {
   }
 }
 
-function JobRow({ job: j }: { job: DownloadJob }) {
+function JobRow({
+  job: j,
+  onRemove,
+}: {
+  job: DownloadJob;
+  onRemove: (id: string) => void;
+}) {
   const pct = fillPercent(j);
   const status = jobStatusText(j);
   const title = j.title ?? j.url;
@@ -1272,6 +1289,18 @@ function JobRow({ job: j }: { job: DownloadJob }) {
           onClick={() => handleReveal(j)}
         >
           <FolderIcon /> 打开文件夹
+        </button>
+      )}
+      {(j.state === "done" ||
+        j.state === "failed" ||
+        j.state === "canceled" ||
+        j.state === "skipped") && (
+        <button
+          className="secondary small"
+          onClick={() => onRemove(j.id)}
+          title="仅从任务列表移除，不会删除已下载的文件"
+        >
+          移除
         </button>
       )}
     </div>

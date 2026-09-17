@@ -93,6 +93,11 @@ pub fn clear_finished(queue: State<'_, QueueManager>) -> Vec<DownloadJob> {
 }
 
 #[tauri::command]
+pub fn remove_job(queue: State<'_, QueueManager>, id: String) -> AppResult<Vec<DownloadJob>> {
+    queue.remove_job(&id)
+}
+
+#[tauri::command]
 pub fn default_download_dir(settings: State<'_, SettingsStore>) -> String {
     settings.get().download_dir
 }

@@ -13,6 +13,7 @@ import {
   openUrl,
   pickFolder,
   resendLicense,
+  refreshPro,
   sendTransferCode,
   updateSettings,
   type ActivateProResult,
@@ -93,9 +94,19 @@ export default function SettingsPage() {
   );
 
   const reloadEntitlement = useCallback(async () => {
-    const next = await getEntitlementStatus();
-    setEntitlement(next);
-    return next;
+    setProBusy(true);
+    try {
+      const local = await getEntitlementStatus();
+      const next = local.signed_token ? await refreshPro() : local;
+      setEntitlement(next);
+      setToast(local.signed_token ? "Pro 授权已续期" : "状态已刷新");
+      return next;
+    } catch (e) {
+      setToast(`刷新授权失败：${formatProError(e)}`);
+      return null;
+    } finally {
+      setProBusy(false);
+    }
   }, []);
 
   const handleActivate = useCallback(async () => {

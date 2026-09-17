@@ -13,6 +13,7 @@ const INSTALLATION_ID_KEY: &str = "installation_id";
 const TOKEN_ISSUER: &str = "ytbdown-license-server";
 const TOKEN_AUDIENCE: &str = "ytbdown-app";
 const EMERGENCY_GRACE_SECONDS: u64 = 24 * 60 * 60;
+const PRO_REFRESH_BEFORE_EXPIRY_SECONDS: u64 = 3 * 24 * 60 * 60;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EntitlementFile {
@@ -312,6 +313,22 @@ impl EntitlementStore {
         };
         self.persist(&state)?;
         Ok(status)
+    }
+
+    /// Return whether the stored Pro token should be renewed in the
+    /// background. A three-day window leaves enough time to ride out
+    /// temporary network or server failures without interrupting Pro.
+    pub fn pro_refresh_due(&self) -> AppResult<bool> {
+        let status = self.get_status()?;
+        let Some(token) = status.signed_token.as_deref() else {
+            return Ok(false);
+        };
+        let claims =
+            match validate_token_for_device(token, &status.device_id, &self.public_key, false) {
+                Ok(claims) => claims,
+                Err(_) => return Ok(false),
+            };
+        Ok(claims.plan == "pro" && claims.exp <= now_seconds() + PRO_REFRESH_BEFORE_EXPIRY_SECONDS)
     }
 
     pub async fn activate_pro(&self, license_key: String) -> AppResult<ActivateProResult> {
@@ -943,6 +960,41 @@ mod tests {
         assert_eq!(status.plan, "pro");
         assert_eq!(status.license_id.as_deref(), Some("lic_test"));
         assert_eq!(status.token_validation_error, None);
+    }
+
+    #[test]
+    fn pro_refresh_is_due_inside_three_day_window() {
+        let temp = tempfile::tempdir().unwrap();
+        let store =
+            EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, "http://127.0.0.1:9")
+                .unwrap();
+        let device_id = store.get_status().unwrap().device_id;
+
+        store
+            .apply_server_status(
+                ServerLicenseStatus {
+                    token: test_token(&device_id, now_seconds() + 4 * 24 * 60 * 60),
+                    token_expires_at: "2099-01-01T00:00:00.000Z".into(),
+                    license_email: "buyer@example.com".into(),
+                    license_key_last4: "ABCD".into(),
+                },
+                &device_id,
+            )
+            .unwrap();
+        assert!(!store.pro_refresh_due().unwrap());
+
+        store
+            .apply_server_status(
+                ServerLicenseStatus {
+                    token: test_token(&device_id, now_seconds() + 2 * 24 * 60 * 60),
+                    token_expires_at: "2099-01-01T00:00:00.000Z".into(),
+                    license_email: "buyer@example.com".into(),
+                    license_key_last4: "ABCD".into(),
+                },
+                &device_id,
+            )
+            .unwrap();
+        assert!(store.pro_refresh_due().unwrap());
     }
 
     #[test]

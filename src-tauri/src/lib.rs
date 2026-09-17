@@ -7,7 +7,7 @@ use crate::core::entitlement::EntitlementStore;
 use crate::core::paths;
 use crate::core::settings::SettingsStore;
 use std::time::Duration;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 pub fn verify_embedded_license_config() -> Result<(), String> {
     core::entitlement::validate_embedded_public_key()
@@ -35,6 +35,34 @@ pub fn run() {
             app.handle()
                 .state::<QueueManager>()
                 .reconcile_quota_reservations(&app.handle());
+
+            // Renew Pro before the seven-day token lifetime runs out. Check
+            // shortly after startup and retry every six hours while the token
+            // is inside its refresh window. A failed refresh never clears a
+            // still-valid local token.
+            {
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                    loop {
+                        let refresh_due = app_handle
+                            .state::<EntitlementStore>()
+                            .pro_refresh_due()
+                            .unwrap_or(false);
+                        if refresh_due {
+                            match app_handle.state::<EntitlementStore>().refresh_pro().await {
+                                Ok(status) => {
+                                    let _ = app_handle.emit("entitlement:updated", status);
+                                }
+                                Err(error) => {
+                                    eprintln!("[entitlement] background refresh failed: {error}");
+                                }
+                            }
+                        }
+                        tokio::time::sleep(Duration::from_secs(6 * 60 * 60)).await;
+                    }
+                });
+            }
 
             // Background task: persist job history every 5s so a hard crash
             // loses at most a few seconds of state. The explicit on-exit
@@ -99,6 +127,7 @@ pub fn run() {
             commands::download::cancel_job,
             commands::download::cancel_batch,
             commands::download::clear_finished,
+            commands::download::remove_job,
             commands::download::default_download_dir,
             commands::entitlement::get_entitlement_status,
             commands::entitlement::activate_pro,

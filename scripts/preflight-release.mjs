@@ -8,7 +8,7 @@ import { cwd, env, exit, platform } from "node:process";
 
 const EXPECTED_PRODUCT_NAME = "YtbDownGUI";
 const EXPECTED_IDENTIFIER = "com.litotime.ytbdowngui";
-const EXPECTED_YTDLP_VERSION = "2026.07.04";
+const EXPECTED_YTDLP_VERSION = "2026.08.19";
 const PRODUCTION_LICENSE_URL = "https://license.ytbdown.litotime.com";
 const PRO_MIN_VERSION = "1.0.1";
 
