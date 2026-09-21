@@ -201,6 +201,7 @@ if [[ -z "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD}" ]]; then
   exit 1
 fi
 export TAURI_SIGNING_PRIVATE_KEY_PATH="${UPDATER_KEY}"
+export TAURI_SIGNING_PRIVATE_KEY="$(< "${UPDATER_KEY}")"
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 
 # Validate release-only requirements before mutating .buildnumber.
