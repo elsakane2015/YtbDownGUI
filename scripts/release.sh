@@ -200,7 +200,6 @@ if [[ -z "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD}" ]]; then
   echo "ERROR: updater signing password is missing from macOS Keychain."
   exit 1
 fi
-export TAURI_SIGNING_PRIVATE_KEY_PATH="${UPDATER_KEY}"
 export TAURI_SIGNING_PRIVATE_KEY="$(< "${UPDATER_KEY}")"
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 
