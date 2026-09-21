@@ -87,14 +87,13 @@ jobs:
           # post-job cache upload failed. Manual runs can refresh the cache.
           save-if: ${{ github.event_name == 'workflow_dispatch' }}
 
-      - name: Build (no installer — we ship a portable zip ourselves)
-        # `--no-bundle` skips MSI/NSIS generation; on Windows that gives us
-        # just the .exe + DLLs in target/<triple>/release/. We assemble the
-        # portable zip in the next step. (`--bundles app` is macOS-only.)
+      - name: Build Windows installer and portable executable
         env:
           YTBDOWN_BUILD_CHANNEL_LABEL: ${{ steps.ver.outputs.channel_label }}
           YTBDOWN_LICENSE_SERVER_URL: https://license.ytbdown.litotime.com
-        run: pnpm tauri build --target x86_64-pc-windows-msvc --no-bundle
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis
 
       - name: Verify embedded license public key
         shell: pwsh
@@ -168,15 +167,72 @@ jobs:
           Compress-Archive -Path YtbDownGUI -DestinationPath ../$zipName -Force
           Pop-Location
           $sha = (Get-FileHash $zipName -Algorithm SHA256).Hash
+
+          # Signed NSIS installer used by Tauri's automatic updater. Keep the
+          # portable ZIP above for users who explicitly prefer it.
+          $builtInstaller = Get-ChildItem "$appDir/bundle/nsis/*-setup.exe" | Select-Object -First 1
+          if (-not $builtInstaller) {
+              throw "NSIS installer was not generated"
+          }
+          $builtSignature = "$($builtInstaller.FullName).sig"
+          if (-not (Test-Path $builtSignature)) {
+              throw "Updater signature was not generated: $builtSignature"
+          }
+          $installerName = "$artifactPrefix-$version-b$build-windows-x64-setup.exe"
+          $signatureName = "$installerName.sig"
+          Copy-Item $builtInstaller.FullName $installerName
+          Copy-Item $builtSignature $signatureName
+
           "zip=$zipName" | Out-File -Append $env:GITHUB_OUTPUT
           "sha=$sha"     | Out-File -Append $env:GITHUB_OUTPUT
+          "installer=$installerName" | Out-File -Append $env:GITHUB_OUTPUT
+          "signature=$signatureName" | Out-File -Append $env:GITHUB_OUTPUT
           Write-Host "Built $zipName  sha256=$sha"
+          Write-Host "Built signed updater installer $installerName"
 
       - name: Upload as workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.stage.outputs.zip }}
-          path: ${{ steps.stage.outputs.zip }}
+          path: |
+            ${{ steps.stage.outputs.zip }}
+            ${{ steps.stage.outputs.installer }}
+            ${{ steps.stage.outputs.signature }}
+
+      - name: Merge Windows into updater manifest
+        id: manifest
+        if: github.event_name == 'push' || inputs.tag != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = if ("${{ github.event_name }}" -eq "push") {
+            "${{ github.ref_name }}"
+          } else {
+            "${{ inputs.tag }}"
+          }
+          New-Item -ItemType Directory -Force -Path "stage/manifest" | Out-Null
+          # The macOS publisher creates the Release immediately after pushing
+          # the tag. Allow for GitHub propagation before trying to merge it.
+          $manifestReady = $false
+          for ($attempt = 1; $attempt -le 20; $attempt++) {
+            gh release download $tag --pattern latest.json --dir "stage/manifest" --clobber
+            if ($LASTEXITCODE -eq 0) {
+              $manifestReady = $true
+              break
+            }
+            Write-Host "Waiting for macOS release manifest ($attempt/20)"
+            Start-Sleep -Seconds 15
+          }
+          if (-not $manifestReady) { throw "macOS updater manifest not found for $tag" }
+          node scripts/update-release-manifest.mjs `
+            --file "stage/manifest/latest.json" `
+            --tag $tag `
+            --version "${{ steps.ver.outputs.version }}" `
+            --asset "${{ steps.stage.outputs.installer }}" `
+            --signature "${{ steps.stage.outputs.signature }}" `
+            --targets "windows-x86_64,windows-x86_64-nsis"
+          "file=stage/manifest/latest.json" | Out-File -Append $env:GITHUB_OUTPUT
 
       - name: Attach to release (if tag exists)
         if: github.event_name == 'push' || inputs.tag != ''
@@ -194,5 +250,8 @@ jobs:
             exit 0
           }
           $zip = "${{ steps.stage.outputs.zip }}"
-          Write-Host "Uploading $zip to release $tag"
-          gh release upload $tag $zip --clobber
+          $installer = "${{ steps.stage.outputs.installer }}"
+          $signature = "${{ steps.stage.outputs.signature }}"
+          $manifest = "${{ steps.manifest.outputs.file }}"
+          Write-Host "Uploading portable ZIP, signed installer, and updater manifest to $tag"
+          gh release upload $tag $zip $installer $signature $manifest --clobber

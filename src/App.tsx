@@ -6,9 +6,15 @@ import SettingsPage from "./pages/SettingsPage";
 import SupportedSitesPage from "./pages/SupportedSitesPage";
 import {
   appVersion,
+  checkAppUpdate,
+  installAppUpdate,
   installYtdlpUpdate,
+  onAppUpdateProgress,
   onYtdlpUpdateAvailable,
   onYtdlpUpdateInstalled,
+  type AppUpdateInfo,
+  type AppUpdateProgress,
+  type UpdateSource,
   type YtdlpUpdateInfo,
 } from "./lib/ipc";
 import "./App.css";
@@ -24,8 +30,14 @@ const NAV: { id: Tab; label: string }[] = [
 
 function App() {
   const [tab, setTab] = useState<Tab>("downloads");
+  const [appUpdate, setAppUpdate] = useState<AppUpdateInfo | null>(null);
+  const [appUpdateProgress, setAppUpdateProgress] =
+    useState<AppUpdateProgress | null>(null);
+  const [appUpdateError, setAppUpdateError] = useState("");
+  const [updatingApp, setUpdatingApp] = useState(false);
   const [ytdlpUpdate, setYtdlpUpdate] = useState<YtdlpUpdateInfo | null>(null);
   const [updatingYtdlp, setUpdatingYtdlp] = useState(false);
+  const [ytdlpUpdateError, setYtdlpUpdateError] = useState("");
   const [platform, setPlatform] = useState<string>("");
 
   // Tag <body> with the OS so CSS can branch (macOS overlay-title-bar
@@ -41,6 +53,33 @@ function App() {
   }, []);
 
   useEffect(() => {
+    let disposed = false;
+    const check = async () => {
+      try {
+        const official = await checkAppUpdate("official");
+        if (!disposed && official) setAppUpdate(official);
+      } catch {
+        try {
+          const github = await checkAppUpdate("github");
+          if (!disposed && github) setAppUpdate(github);
+        } catch {
+          // Update checks must never interrupt normal app startup.
+        }
+      }
+    };
+    const timer = window.setInterval(check, 24 * 60 * 60 * 1000);
+    const unlisten = onAppUpdateProgress((progress) =>
+      setAppUpdateProgress(progress),
+    );
+    void check();
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  useEffect(() => {
     const unAvail = onYtdlpUpdateAvailable((info) => setYtdlpUpdate(info));
     const unInst = onYtdlpUpdateInstalled(() => setYtdlpUpdate(null));
     return () => {
@@ -49,17 +88,44 @@ function App() {
     };
   }, []);
 
-  const handleUpdate = async () => {
-    if (!ytdlpUpdate) return;
+  const handleYtdlpUpdate = async (source: UpdateSource) => {
+    setYtdlpUpdateError("");
     setUpdatingYtdlp(true);
     try {
-      await installYtdlpUpdate(ytdlpUpdate);
+      await installYtdlpUpdate(source);
     } catch (e) {
-      console.error("yt-dlp install:", e);
+      setYtdlpUpdateError(String(e));
     } finally {
       setUpdatingYtdlp(false);
     }
   };
+
+  const handleAppUpdate = async (source: UpdateSource) => {
+    setAppUpdateError("");
+    setAppUpdateProgress(null);
+    setUpdatingApp(true);
+    try {
+      await installAppUpdate(source);
+    } catch (e) {
+      setAppUpdateError(String(e));
+      setUpdatingApp(false);
+    }
+  };
+
+  const appProgressLabel = (() => {
+    if (!updatingApp) return "";
+    if (appUpdateProgress?.finished) return "正在安装…";
+    if (appUpdateProgress?.total) {
+      const percent = Math.min(
+        100,
+        Math.round(
+          (appUpdateProgress.downloaded / appUpdateProgress.total) * 100,
+        ),
+      );
+      return `下载中 ${percent}%`;
+    }
+    return "下载中…";
+  })();
 
   // Explicit drag via Tauri's window.startDragging() — works reliably on
   // macOS overlay title bars even when the window is already focused,
@@ -112,19 +178,66 @@ function App() {
           ))}
         </nav>
       </div>
+      {appUpdate && (
+        <div className="update-banner app-update-banner">
+          <span>
+            YtbDownGUI 新版可用：<strong>v{appUpdate.latest}</strong>{" "}
+            <span className="muted small">（当前 v{appUpdate.current}）</span>
+            {appUpdateError && (
+              <span className="update-error"> · {appUpdateError}</span>
+            )}
+          </span>
+          <div>
+            {updatingApp ? (
+              <span className="update-progress">{appProgressLabel}</span>
+            ) : (
+              <>
+                <button
+                  className="primary small"
+                  onClick={() => handleAppUpdate("official")}
+                >
+                  YtbDownGUI 官方源（推荐）
+                </button>
+                <button
+                  className="secondary small"
+                  onClick={() => handleAppUpdate("github")}
+                >
+                  GitHub
+                </button>
+                <button
+                  className="secondary small"
+                  onClick={() => setAppUpdate(null)}
+                >
+                  稍后
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       {ytdlpUpdate && (
         <div className="update-banner">
           <span>
             yt-dlp 新版可用：<strong>{ytdlpUpdate.latest}</strong>{" "}
             <span className="muted small">（当前 {ytdlpUpdate.current || "未知"}）</span>
+            {ytdlpUpdateError && (
+              <span className="update-error"> · {ytdlpUpdateError}</span>
+            )}
           </span>
           <div>
             <button
               className="primary small"
-              onClick={handleUpdate}
+              onClick={() => handleYtdlpUpdate("official")}
               disabled={updatingYtdlp}
             >
-              {updatingYtdlp ? "更新中…" : "更新"}
+              {updatingYtdlp ? "更新中…" : "YtbDownGUI 官方源（推荐）"}
+            </button>
+            <button
+              className="secondary small"
+              onClick={() => handleYtdlpUpdate("github")}
+              disabled={updatingYtdlp}
+            >
+              GitHub
             </button>
             <button
               className="secondary small"

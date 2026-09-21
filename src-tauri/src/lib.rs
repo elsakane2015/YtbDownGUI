@@ -18,6 +18,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let data_dir = paths::data_dir(&app.handle()).map_err(|e| e.to_string())?;
             crate::core::log::init(&data_dir);
@@ -80,19 +81,33 @@ pub fn run() {
                 });
             }
 
-            // Background task: yt-dlp update check (only when enabled).
+            // Background task: check yt-dlp on startup and every 24 hours.
+            // Prefer the official YtbDownGUI mirror and fall back to GitHub
+            // when the mirror is temporarily unavailable.
             {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
-                    // Wait a moment to let the window finish rendering before
-                    // we emit any update banners.
                     tokio::time::sleep(Duration::from_secs(2)).await;
-                    if app_handle
-                        .state::<SettingsStore>()
-                        .get()
-                        .auto_check_ytdlp_updates
-                    {
-                        let _ = crate::core::ytdlp_update::check(&app_handle).await;
+                    loop {
+                        if app_handle
+                            .state::<SettingsStore>()
+                            .get()
+                            .auto_check_ytdlp_updates
+                        {
+                            let official = crate::core::ytdlp_update::check(
+                                &app_handle,
+                                crate::core::update_source::UpdateSource::Official,
+                            )
+                            .await;
+                            if official.is_err() {
+                                let _ = crate::core::ytdlp_update::check(
+                                    &app_handle,
+                                    crate::core::update_source::UpdateSource::Github,
+                                )
+                                .await;
+                            }
+                        }
+                        tokio::time::sleep(Duration::from_secs(24 * 60 * 60)).await;
                     }
                 });
             }
@@ -149,6 +164,8 @@ pub fn run() {
             commands::system::reveal_in_finder,
             commands::ytdlp_update::check_ytdlp_update,
             commands::ytdlp_update::install_ytdlp_update,
+            commands::app_update::check_app_update,
+            commands::app_update::install_app_update,
             commands::app_info::app_version,
         ])
         .run(tauri::generate_context!())

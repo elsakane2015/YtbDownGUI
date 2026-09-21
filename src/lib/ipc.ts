@@ -379,18 +379,22 @@ export const onSettingsUpdated = (
 
 // ---- yt-dlp update ----
 
+export type UpdateSource = "official" | "github";
+
 export type YtdlpUpdateInfo = {
   current: string;
   latest: string;
   release_url: string;
   asset_url: string;
+  sha256: string;
+  source: UpdateSource;
 };
 
-export const checkYtdlpUpdate = () =>
-  invoke<YtdlpUpdateInfo | null>("check_ytdlp_update");
+export const checkYtdlpUpdate = (source: UpdateSource) =>
+  invoke<YtdlpUpdateInfo | null>("check_ytdlp_update", { source });
 
-export const installYtdlpUpdate = (info: YtdlpUpdateInfo) =>
-  invoke<string>("install_ytdlp_update", { info });
+export const installYtdlpUpdate = (source: UpdateSource) =>
+  invoke<string>("install_ytdlp_update", { source });
 
 export const onYtdlpUpdateAvailable = (
   cb: (info: YtdlpUpdateInfo) => void,
@@ -401,6 +405,33 @@ export const onYtdlpUpdateInstalled = (
   cb: (version: string) => void,
 ): Promise<UnlistenFn> =>
   listen<string>("ytdlp-update:installed", (e) => cb(e.payload));
+
+// ---- application update ----
+
+export type AppUpdateInfo = {
+  current: string;
+  latest: string;
+  notes: string;
+  published_at: string | null;
+  source: UpdateSource;
+};
+
+export type AppUpdateProgress = {
+  downloaded: number;
+  total: number | null;
+  finished: boolean;
+};
+
+export const checkAppUpdate = (source: UpdateSource) =>
+  invoke<AppUpdateInfo | null>("check_app_update", { source });
+
+export const installAppUpdate = (source: UpdateSource) =>
+  invoke<void>("install_app_update", { source });
+
+export const onAppUpdateProgress = (
+  cb: (progress: AppUpdateProgress) => void,
+): Promise<UnlistenFn> =>
+  listen<AppUpdateProgress>("app-update:progress", (e) => cb(e.payload));
 
 // ---- app version ----
 

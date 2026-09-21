@@ -527,7 +527,7 @@ export default function SettingsPage() {
                   patch({ auto_check_ytdlp_updates: e.currentTarget.checked })
                 }
               />
-              <span>启动时后台检查 yt-dlp 是否有新版（不自动下载，仅 UI 提示）</span>
+              <span>启动时及每 24 小时检查 yt-dlp 是否有新版（确认来源后自动安装）</span>
             </label>
             <label className="checkbox-row">
               <input
@@ -539,7 +539,7 @@ export default function SettingsPage() {
                 }
               />
               <span>
-                更新检查 / 下载也走上面配置的代理
+                GitHub 与官方源的更新检查 / 下载也走上面配置的代理
                 {!settings.proxy.trim() && (
                   <span className="muted small">（未配置代理时此项无效）</span>
                 )}

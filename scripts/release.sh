@@ -183,6 +183,26 @@ if [[ "${NOTARY_PROFILE_READY}" != true ]]; then
 fi
 echo "Notary profile: ${NOTARY_PROFILE} (${NOTARY_KEYCHAIN})"
 
+# Tauri updater artifacts use a separate minisign key. The encrypted private
+# key stays outside the repository; its password is stored in macOS Keychain
+# and the matching public key is embedded in tauri.conf.json.
+UPDATER_KEY="/Users/xue/.tauri/ytbdown-updater.key"
+UPDATER_KEYCHAIN_SERVICE="com.litotime.ytbdowngui.updater-key"
+if [[ ! -f "${UPDATER_KEY}" ]]; then
+  echo "ERROR: updater signing key is missing: ${UPDATER_KEY}"
+  exit 1
+fi
+TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$(security find-generic-password \
+  -a YtbDownGUI \
+  -s "${UPDATER_KEYCHAIN_SERVICE}" \
+  -w 2>/dev/null || true)
+if [[ -z "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD}" ]]; then
+  echo "ERROR: updater signing password is missing from macOS Keychain."
+  exit 1
+fi
+export TAURI_SIGNING_PRIVATE_KEY_PATH="${UPDATER_KEY}"
+export TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+
 # Validate release-only requirements before mutating .buildnumber.
 pnpm preflight:release
 
@@ -383,6 +403,32 @@ spctl --assess \
 spctl --assess --type execute --verbose=4 "${APP}"
 echo "Notarized and stapled DMG: ${DMG_FINAL}"
 
+# Staple the app itself, then rebuild the updater archive from the final app
+# whose yt-dlp sidecar has the required library-validation entitlement.
+xcrun stapler staple "${APP}"
+xcrun stapler validate "${APP}"
+UPDATER_ARCHIVE="${RELEASE_DIR}/${ARTIFACT_PREFIX}_${VERSION}_b${BUILD_STR}_universal.app.tar.gz"
+UPDATER_SIGNATURE="${UPDATER_ARCHIVE}.sig"
+rm -f "${UPDATER_ARCHIVE}" "${UPDATER_SIGNATURE}"
+COPYFILE_DISABLE=1 tar -czf "${UPDATER_ARCHIVE}" \
+  -C "${BUNDLE_DIR}/macos" \
+  "YtbDownGUI.app"
+pnpm tauri signer sign "${UPDATER_ARCHIVE}"
+if [[ ! -s "${UPDATER_SIGNATURE}" ]]; then
+  echo "ERROR: updater signature was not created: ${UPDATER_SIGNATURE}"
+  exit 1
+fi
+
+LATEST_JSON="${RELEASE_DIR}/latest.json"
+node scripts/update-release-manifest.mjs \
+  --file "${LATEST_JSON}" \
+  --tag "${TAG}" \
+  --version "${VERSION}" \
+  --asset "${UPDATER_ARCHIVE}" \
+  --signature "${UPDATER_SIGNATURE}" \
+  --targets "darwin-aarch64,darwin-x86_64" \
+  --notes "任务列表支持最新/最旧排序，并加入应用与 yt-dlp 双源自动更新。"
+
 # Also drop the signed .app folder next to it for reference.
 ditto "${APP}" "${RELEASE_DIR}/YtbDownGUI.app" 2>/dev/null || true
 
@@ -415,11 +461,15 @@ xattr -dr com.apple.quarantine /Applications/YtbDownGUI.app
 
 ## Windows
 Windows 版正在构建中，稍后自动附到此 Release。
-下载 \`YtbDownGUI-*-windows-x64.zip\`，解压后直接双击 \`YtbDownGUI.exe\`。
+安装版下载 \`*-windows-x64-setup.exe\`，支持应用内自动更新。
+便携版下载 \`*-windows-x64.zip\`，解压后直接双击 \`YtbDownGUI.exe\`；便携版更新时需手动替换程序文件并保留 data 文件夹。
 首次启动 SmartScreen 弹窗点「更多信息」→「仍要运行」。"
 
 gh release create "${TAG}" \
   "${DMG_FINAL}" \
+  "${UPDATER_ARCHIVE}" \
+  "${UPDATER_SIGNATURE}" \
+  "${LATEST_JSON}" \
   --verify-tag \
   --title "${VERSION_LABEL} (Build ${BUILD_STR})" \
   --notes "${RELEASE_NOTES}"
@@ -436,6 +486,7 @@ echo "  YtbDownGUI ${VERSION_LABEL} (Build ${BUILD_STR})"
 echo "==========================================="
 echo "  .app : ${RELEASE_DIR}/YtbDownGUI.app"
 echo "  .dmg : ${DMG_FINAL}"
+echo "  update: ${UPDATER_ARCHIVE}"
 echo "  size : $(du -h "${DMG_FINAL}" | awk '{print $1}')"
 echo "  sha  : $(shasum -a 256 "${DMG_FINAL}" | awk '{print $1}')"
 echo "  tag  : ${TAG} (git-pushed to GitHub; Windows build triggered)"

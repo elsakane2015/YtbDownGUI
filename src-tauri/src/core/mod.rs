@@ -8,4 +8,5 @@ pub mod paths;
 pub mod probe;
 pub mod settings;
 pub mod sites;
+pub mod update_source;
 pub mod ytdlp_update;

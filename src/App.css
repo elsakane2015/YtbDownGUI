@@ -879,6 +879,18 @@ button.small {
 .update-banner strong {
   font-weight: 600;
 }
+.app-update-banner {
+  background: rgba(52, 199, 89, 0.13);
+  border-bottom-color: rgba(52, 199, 89, 0.28);
+}
+.update-progress {
+  min-width: 92px;
+  text-align: right;
+  font-weight: 600;
+}
+.update-error {
+  color: var(--danger);
+}
 
 .app-version-footer {
   margin-top: 28px;
