@@ -378,10 +378,8 @@ export default function SettingsPage() {
             </button>
             {billingProduct?.purchase_available === false ? (
               <span className="muted small">暂未开放购买</span>
-            ) : billingProduct?.settlement_price_formatted ? (
-              <span className="muted small">
-                人民币为展示价格，付款页实际按 {billingProduct.settlement_price_formatted} 结算
-              </span>
+            ) : billingProduct?.display_price_formatted ? (
+              <span className="muted small">付款订单按港币 HKD 结算</span>
             ) : null}
           </div>
         </div>

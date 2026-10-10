@@ -783,7 +783,7 @@ Reasoning:
 - [x] 客户端授权代码已实现。
 - [x] Stripe test mode 已接入服务端 Checkout / webhook 履约代码，待真实 Stripe 控制台联调。
 - [x] VmShell PAY 服务端接入已实现：HMAC-SHA256 下单、验签查单、表单回调、金额/邮箱/币种核对、并发幂等发码、退款停用授权、争议独立审计。
-- [x] License Server 后台可分别设置人民币展示价和 VmShell PAY 港币实际扣款价；客户端同时显示两种金额，不做实时汇率换算，后台改价只影响后续新订单。
+- [x] License Server 后台统一设置港币 HKD 售价；客户端和 VmShell PAY 订单显示同一港币金额，后台改价只影响后续新订单。
 - [ ] VmShell PAY 应用接入审核、沙箱成功订单与正式环境审批待完成；通过后在 VPS 配置 `PRO_SALES_MODE=vmshell`、AppId/AppSecret 和 HKD 售价并做真实端到端联调。
 - [x] 服务端已补生产密钥生成和部署前 preflight 校验脚本，待真实生产环境执行。
 - [x] 客户端已补发布前 preflight 校验，并接入 macOS release 脚本和 Windows release workflow。
