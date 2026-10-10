@@ -151,6 +151,7 @@ pub fn run() {
             commands::entitlement::send_transfer_code,
             commands::entitlement::activate_with_transfer_code,
             commands::entitlement::create_checkout_session,
+            commands::entitlement::get_billing_product,
             commands::entitlement::resend_license,
             commands::entitlement::get_support_contact,
             commands::entitlement::sync_free_quota_status,

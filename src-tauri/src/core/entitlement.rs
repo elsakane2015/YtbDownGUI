@@ -101,6 +101,22 @@ pub struct CheckoutSession {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BillingProduct {
+    pub product_id: String,
+    pub name: String,
+    pub billing_type: String,
+    pub display_currency: String,
+    pub display_amount: Option<String>,
+    pub display_price_formatted: Option<String>,
+    pub settlement_currency: Option<String>,
+    pub settlement_amount: Option<String>,
+    pub settlement_price_formatted: Option<String>,
+    pub payment_provider: String,
+    pub purchase_available: bool,
+    pub price_configured: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResendLicenseResponse {
     pub accepted: bool,
     pub email_hint: String,
@@ -510,6 +526,16 @@ impl EntitlementStore {
             .await
             .map_err(http_error)?;
         json_or_status::<CheckoutSession>(response).await
+    }
+
+    pub async fn billing_product(&self) -> AppResult<BillingProduct> {
+        let response = self
+            .client()?
+            .get(self.endpoint("/v1/billing/product"))
+            .send()
+            .await
+            .map_err(http_error)?;
+        json_or_status::<BillingProduct>(response).await
     }
 
     pub async fn resend_license(&self, purchase_email: String) -> AppResult<ResendLicenseResponse> {

@@ -677,8 +677,8 @@ TERMS_URL=
 - [ ] Reinstall or delete `$APP_DATA` does not change secure-storage id（重装或删除 `$APP_DATA` 不改变系统安全存储里的 ID）。
 - [x] Keychain/Credential Manager unavailable fallback is visible in logs/status（Keychain/Credential Manager 不可用时，fallback 状态能在日志或状态里看到）。
   - 设置页 Pro 面板已展示 `secure_storage_available` 对应的“系统安全存储 / 本地文件 fallback”状态。
-- [ ] Purchase button opens Checkout（购买按钮能打开 Stripe Checkout）。
-- [x] Stripe success page and cancel page are readable（Stripe 成功页和取消页可读）。
+- [ ] Purchase button opens Checkout（购买按钮能打开当前支付服务商 Checkout）。
+- [x] 支付成功页和取消页可读。
 - [ ] License email content is readable（license 邮件内容可读）。
 - [ ] Settings Pro panel states are clear（设置页 Pro 面板状态清晰）。
 - [ ] Download page quota display updates after success/cancel/failure（下载成功、取消、失败后，下载页额度显示正确更新）。
@@ -782,6 +782,9 @@ Reasoning:
 - [x] 服务端项目骨架已初始化。
 - [x] 客户端授权代码已实现。
 - [x] Stripe test mode 已接入服务端 Checkout / webhook 履约代码，待真实 Stripe 控制台联调。
+- [x] VmShell PAY 服务端接入已实现：HMAC-SHA256 下单、验签查单、表单回调、金额/邮箱/币种核对、并发幂等发码、退款停用授权、争议独立审计。
+- [x] License Server 后台可分别设置人民币展示价和 VmShell PAY 港币实际扣款价；客户端同时显示两种金额，不做实时汇率换算，后台改价只影响后续新订单。
+- [ ] VmShell PAY 应用接入审核、沙箱成功订单与正式环境审批待完成；通过后在 VPS 配置 `PRO_SALES_MODE=vmshell`、AppId/AppSecret 和 HKD 售价并做真实端到端联调。
 - [x] 服务端已补生产密钥生成和部署前 preflight 校验脚本，待真实生产环境执行。
 - [x] 客户端已补发布前 preflight 校验，并接入 macOS release 脚本和 Windows release workflow。
 - [x] Pro 客户端版本号已调整为 `1.0.1`，release 构建会从当前 `.buildnumber=021` 自动递增到 `022`。

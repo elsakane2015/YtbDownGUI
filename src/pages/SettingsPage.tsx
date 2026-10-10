@@ -6,6 +6,7 @@ import {
   appVersion,
   createCheckoutSession,
   deactivatePro,
+  getBillingProduct,
   getSettings,
   getEntitlementStatus,
   getSupportContact,
@@ -18,6 +19,7 @@ import {
   updateSettings,
   type ActivateProResult,
   type AppVersion,
+  type BillingProduct,
   type EntitlementStatus,
   type Settings,
   type SupportContact,
@@ -44,6 +46,7 @@ export default function SettingsPage() {
   const [version, setVersion] = useState<AppVersion | null>(null);
   const [entitlement, setEntitlement] = useState<EntitlementStatus | null>(null);
   const [support, setSupport] = useState<SupportContact | null>(null);
+  const [billingProduct, setBillingProduct] = useState<BillingProduct | null>(null);
   const [licenseKey, setLicenseKey] = useState("");
   const [transferCode, setTransferCode] = useState("");
   const [transferRequired, setTransferRequired] = useState<{
@@ -60,6 +63,7 @@ export default function SettingsPage() {
     appVersion().then(setVersion).catch(() => {});
     getEntitlementStatus().then(setEntitlement).catch((e) => setToast(String(e)));
     getSupportContact().then(setSupport).catch(() => {});
+    getBillingProduct().then(setBillingProduct).catch(() => {});
   }, []);
 
   const patch = useCallback(
@@ -360,12 +364,25 @@ export default function SettingsPage() {
               onChange={(e) => setPurchaseEmail(e.currentTarget.value)}
               placeholder="user@example.com"
             />
-            <button className="primary" onClick={handlePurchase} disabled={proBusy}>
-              购买 Pro
+            <button
+              className="primary"
+              onClick={handlePurchase}
+              disabled={proBusy || billingProduct?.purchase_available === false}
+            >
+              {billingProduct?.display_price_formatted
+                ? `${billingProduct.display_price_formatted} 购买 Pro`
+                : "购买 Pro"}
             </button>
             <button className="secondary" onClick={handleResend} disabled={proBusy}>
               找回激活码
             </button>
+            {billingProduct?.purchase_available === false ? (
+              <span className="muted small">暂未开放购买</span>
+            ) : billingProduct?.settlement_price_formatted ? (
+              <span className="muted small">
+                人民币为展示价格，付款页实际按 {billingProduct.settlement_price_formatted} 结算
+              </span>
+            ) : null}
           </div>
         </div>
         {support && (

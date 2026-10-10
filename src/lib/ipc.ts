@@ -215,6 +215,21 @@ export type CheckoutSession = {
   checkout_url: string;
 };
 
+export type BillingProduct = {
+  product_id: string;
+  name: string;
+  billing_type: string;
+  display_currency: string;
+  display_amount: string | null;
+  display_price_formatted: string | null;
+  settlement_currency: string | null;
+  settlement_amount: string | null;
+  settlement_price_formatted: string | null;
+  payment_provider: string;
+  purchase_available: boolean;
+  price_configured: boolean;
+};
+
 export type ResendLicenseResponse = {
   accepted: boolean;
   email_hint: string;
@@ -322,6 +337,9 @@ export const activateWithTransferCode = (
 
 export const createCheckoutSession = (purchaseEmail: string) =>
   invoke<CheckoutSession>("create_checkout_session", { purchaseEmail });
+
+export const getBillingProduct = () =>
+  invoke<BillingProduct>("get_billing_product");
 
 export const resendLicense = (purchaseEmail: string) =>
   invoke<ResendLicenseResponse>("resend_license", { purchaseEmail });

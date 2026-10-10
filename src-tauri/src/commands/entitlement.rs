@@ -1,8 +1,9 @@
 //! IPC commands for Pro/free entitlement state.
 
 use crate::core::entitlement::{
-    ActivateProResult, CheckoutSession, EntitlementStatus, EntitlementStore, FreeQuotaReservation,
-    FreeQuotaStatus, ResendLicenseResponse, SupportContact, TransferCodeStatus,
+    ActivateProResult, BillingProduct, CheckoutSession, EntitlementStatus, EntitlementStore,
+    FreeQuotaReservation, FreeQuotaStatus, ResendLicenseResponse, SupportContact,
+    TransferCodeStatus,
 };
 use crate::error::AppResult;
 use tauri::{Emitter, State};
@@ -79,6 +80,11 @@ pub async fn create_checkout_session(
     purchase_email: String,
 ) -> AppResult<CheckoutSession> {
     store.create_checkout_session(purchase_email).await
+}
+
+#[tauri::command]
+pub async fn get_billing_product(store: State<'_, EntitlementStore>) -> AppResult<BillingProduct> {
+    store.billing_product().await
 }
 
 #[tauri::command]
