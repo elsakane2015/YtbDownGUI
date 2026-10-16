@@ -137,6 +137,24 @@ jobs:
               Copy-Item "$appDir/WebView2Loader.dll" "$stage/"
           }
 
+          # The NSIS build above downloads Microsoft's signed Evergreen
+          # standalone installer because tauri.conf.json uses
+          # `offlineInstaller`. Reuse that verified build dependency in the
+          # portable package so YtbDownGUI can repair a missing runtime on its
+          # first launch without network access.
+          $webViewCache = Join-Path $env:LOCALAPPDATA "tauri/x64"
+          $webViewInstaller = Get-ChildItem $webViewCache -Recurse -File -Filter "MicrosoftEdgeWebView2RuntimeInstallerX64.exe" -ErrorAction SilentlyContinue |
+              Sort-Object LastWriteTime -Descending |
+              Select-Object -First 1
+          if (-not $webViewInstaller) {
+              throw "WebView2 offline installer was not found in the Tauri cache: $webViewCache"
+          }
+          $webViewSignature = Get-AuthenticodeSignature $webViewInstaller.FullName
+          if ($webViewSignature.Status -ne "Valid" -or $webViewSignature.SignerCertificate.Subject -notmatch "Microsoft") {
+              throw "WebView2 offline installer does not have a valid Microsoft signature"
+          }
+          Copy-Item $webViewInstaller.FullName "$stage/MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+
           # Credits.rtf — purely cosmetic on Windows but keeps file layout
           # parity with the macOS bundle.
           if (Test-Path "src-tauri/Credits.rtf") {
@@ -151,13 +169,17 @@ jobs:
           YtbDownGUI $(if ($channelLabel) { "$channelLabel " })v$version (Build $build) · Windows Portable
 
           1. 解压后直接双击 YtbDownGUI.exe 运行。
-          2. 首次启动如 Windows SmartScreen 拦截，点 "更多信息" → "仍要运行"。
-          3. 设置 / cookies / 任务历史 默认存放在本目录下的 data/ 文件夹（便携模式）。
+          2. 若电脑缺少 WebView2，首次启动会使用包内的微软官方安装程序静默安装，
+             无需联网；安装完成后软件会继续打开。
+          3. 首次启动如 Windows SmartScreen 拦截，点 "更多信息" → "仍要运行"。
+          4. 设置 / cookies / 任务历史 默认存放在本目录下的 data/ 文件夹（便携模式）。
              删除 portable.txt 可切换到系统 %APPDATA% 目录。
 
           1. Unzip and double-click YtbDownGUI.exe.
-          2. If Windows SmartScreen warns, click "More info" -> "Run anyway".
-          3. Settings/cookies/job history live in the local data/ folder by default
+          2. If WebView2 is missing, the bundled Microsoft offline installer runs
+             silently on first launch; no network connection is required.
+          3. If Windows SmartScreen warns, click "More info" -> "Run anyway".
+          4. Settings/cookies/job history live in the local data/ folder by default
              (portable mode). Delete portable.txt to fall back to %APPDATA%.
           "@ | Out-File -Encoding utf8 "$stage/README.txt"
 
@@ -173,6 +195,9 @@ jobs:
           $builtInstaller = Get-ChildItem "$appDir/bundle/nsis/*-setup.exe" | Select-Object -First 1
           if (-not $builtInstaller) {
               throw "NSIS installer was not generated"
+          }
+          if ($builtInstaller.Length -lt 100MB) {
+              throw "NSIS installer is unexpectedly small; WebView2 offline runtime may not be embedded"
           }
           $builtSignature = "$($builtInstaller.FullName).sig"
           if (-not (Test-Path $builtSignature)) {

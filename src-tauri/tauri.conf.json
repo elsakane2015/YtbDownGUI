@@ -46,6 +46,12 @@
     ],
     "macOS": {
       "signingIdentity": "Developer ID Application: Xuefeng Huang (HCDD4TQBT8)"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "offlineInstaller",
+        "silent": true
+      }
     }
   },
   "plugins": {
