@@ -53,10 +53,15 @@ pub fn run() {
                         if refresh_due {
                             match app_handle.state::<EntitlementStore>().refresh_pro().await {
                                 Ok(status) => {
+                                    crate::core::log::write(
+                                        "[entitlement] background refresh succeeded",
+                                    );
                                     let _ = app_handle.emit("entitlement:updated", status);
                                 }
                                 Err(error) => {
-                                    eprintln!("[entitlement] background refresh failed: {error}");
+                                    crate::core::log::write(format!(
+                                        "[entitlement] background refresh failed: {error}"
+                                    ));
                                 }
                             }
                         }

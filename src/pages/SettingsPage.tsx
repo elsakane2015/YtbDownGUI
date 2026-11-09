@@ -10,6 +10,7 @@ import {
   getSettings,
   getEntitlementStatus,
   getSupportContact,
+  onEntitlementUpdated,
   openPath,
   openUrl,
   pickFolder,
@@ -64,6 +65,10 @@ export default function SettingsPage() {
     getEntitlementStatus().then(setEntitlement).catch((e) => setToast(String(e)));
     getSupportContact().then(setSupport).catch(() => {});
     getBillingProduct().then(setBillingProduct).catch(() => {});
+    const unEntitlement = onEntitlementUpdated(setEntitlement);
+    return () => {
+      unEntitlement.then((fn) => fn());
+    };
   }, []);
 
   const patch = useCallback(
@@ -274,7 +279,10 @@ export default function SettingsPage() {
             value={
               entitlement?.pro_active
                 ? `当前设备已激活 · ${shortId(entitlement.device_id)}`
-                : `未激活 · ${shortId(entitlement?.device_id)}`
+                : entitlement?.license_id &&
+                    entitlement.token_validation_error !== "token_missing"
+                  ? `授权待续签 · ${shortId(entitlement.device_id)}`
+                  : `未激活 · ${shortId(entitlement?.device_id)}`
             }
           />
           <StatusItem

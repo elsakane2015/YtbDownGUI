@@ -10,6 +10,7 @@ use uuid::Uuid;
 const SERVICE_NAME: &str = "YtbDownGUI";
 const DEVICE_ID_KEY: &str = "device_id";
 const INSTALLATION_ID_KEY: &str = "installation_id";
+const REFRESH_TOKEN_KEY: &str = "device_refresh_token";
 const TOKEN_ISSUER: &str = "ytbdown-license-server";
 const TOKEN_AUDIENCE: &str = "ytbdown-app";
 const EMERGENCY_GRACE_SECONDS: u64 = 24 * 60 * 60;
@@ -30,6 +31,8 @@ pub struct EntitlementFile {
     #[serde(default)]
     pub signed_token: Option<String>,
     #[serde(default)]
+    pub refresh_token_fallback: Option<String>,
+    #[serde(default)]
     pub token_expires_at: Option<String>,
     #[serde(default)]
     pub trial_used_count_cache: Option<u32>,
@@ -48,6 +51,7 @@ impl Default for EntitlementFile {
             license_email: None,
             license_key_last4: None,
             signed_token: None,
+            refresh_token_fallback: None,
             token_expires_at: None,
             trial_used_count_cache: None,
             trial_remaining_count_cache: None,
@@ -180,6 +184,8 @@ struct ServerLicenseStatus {
     token_expires_at: String,
     license_email: String,
     license_key_last4: String,
+    #[serde(default)]
+    refresh_token: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -193,14 +199,20 @@ struct ActivateRequest<'a> {
 
 #[derive(Debug, Serialize)]
 struct RefreshRequest<'a> {
-    token: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    token: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    refresh_token: Option<&'a str>,
     device_id: &'a str,
     app_version: &'a str,
 }
 
 #[derive(Debug, Serialize)]
 struct DeactivateRequest<'a> {
-    token: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    token: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    refresh_token: Option<&'a str>,
     device_id: &'a str,
 }
 
@@ -384,15 +396,20 @@ impl EntitlementStore {
 
     pub async fn refresh_pro(&self) -> AppResult<EntitlementStatus> {
         let (device_id, _, _, app_version) = self.device_context()?;
-        let token = {
+        let (token, refresh_token) = {
             let state = self.state.lock().unwrap();
-            state
-                .signed_token
-                .clone()
-                .ok_or_else(|| AppError::Other("No Pro token is stored".into()))?
+            let refresh_token = read_keyring(REFRESH_TOKEN_KEY)
+                .ok()
+                .flatten()
+                .or_else(|| state.refresh_token_fallback.clone());
+            (state.signed_token.clone(), refresh_token)
         };
+        if token.is_none() && refresh_token.is_none() {
+            return Err(AppError::Other("No Pro credential is stored".into()));
+        }
         let request = RefreshRequest {
-            token: &token,
+            token: token.as_deref(),
+            refresh_token: refresh_token.as_deref(),
             device_id: &device_id,
             app_version: &app_version,
         };
@@ -409,7 +426,9 @@ impl EntitlementStore {
         let status = match refresh_result {
             Ok(status) => status,
             Err(error) => {
-                self.try_emergency_grace(&device_id, &token)?;
+                if let Some(token) = token.as_deref() {
+                    self.try_emergency_grace(&device_id, token)?;
+                }
                 if self.get_status()?.pro_active {
                     return self.get_status();
                 }
@@ -422,14 +441,19 @@ impl EntitlementStore {
 
     pub async fn deactivate_pro(&self) -> AppResult<EntitlementStatus> {
         let (device_id, _, _, _) = self.device_context()?;
-        let token = {
+        let (token, refresh_token) = {
             let state = self.state.lock().unwrap();
-            state.signed_token.clone()
+            let refresh_token = read_keyring(REFRESH_TOKEN_KEY)
+                .ok()
+                .flatten()
+                .or_else(|| state.refresh_token_fallback.clone());
+            (state.signed_token.clone(), refresh_token)
         };
 
-        if let Some(token) = token {
+        if token.is_some() || refresh_token.is_some() {
             let request = DeactivateRequest {
-                token: &token,
+                token: token.as_deref(),
+                refresh_token: refresh_token.as_deref(),
                 device_id: &device_id,
             };
             let response = self
@@ -449,6 +473,7 @@ impl EntitlementStore {
             clear_pro_state(&mut state);
             self.persist(&state)?;
         }
+        let _ = delete_keyring(REFRESH_TOKEN_KEY);
         self.get_status()
     }
 
@@ -661,6 +686,13 @@ impl EntitlementStore {
         state.license_key_last4 = Some(status.license_key_last4);
         state.signed_token = Some(status.token);
         state.token_expires_at = Some(status.token_expires_at);
+        if let Some(refresh_token) = status.refresh_token {
+            if write_keyring(REFRESH_TOKEN_KEY, &refresh_token).is_ok() {
+                state.refresh_token_fallback = None;
+            } else {
+                state.refresh_token_fallback = Some(refresh_token);
+            }
+        }
         state.emergency_grace_used_for_token = None;
         self.persist(&state)
     }
@@ -755,6 +787,14 @@ fn write_keyring(key: &str, value: &str) -> Result<(), keyring::Error> {
     entry.set_password(value)
 }
 
+fn delete_keyring(key: &str) -> Result<(), keyring::Error> {
+    let entry = keyring::Entry::new(SERVICE_NAME, key)?;
+    match entry.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
 struct TokenEvaluation {
     claims: Option<EntitlementClaims>,
     error: Option<String>,
@@ -825,6 +865,7 @@ fn clear_pro_state(state: &mut EntitlementFile) {
     state.license_email = None;
     state.license_key_last4 = None;
     state.signed_token = None;
+    state.refresh_token_fallback = None;
     state.token_expires_at = None;
     state.emergency_grace_used_for_token = None;
 }
@@ -976,6 +1017,7 @@ mod tests {
                     token_expires_at: "2099-01-01T00:00:00.000Z".into(),
                     license_email: "buyer@example.com".into(),
                     license_key_last4: "ABCD".into(),
+                    refresh_token: None,
                 },
                 &device_id,
             )
@@ -1003,6 +1045,7 @@ mod tests {
                     token_expires_at: "2099-01-01T00:00:00.000Z".into(),
                     license_email: "buyer@example.com".into(),
                     license_key_last4: "ABCD".into(),
+                    refresh_token: None,
                 },
                 &device_id,
             )
@@ -1016,10 +1059,30 @@ mod tests {
                     token_expires_at: "2099-01-01T00:00:00.000Z".into(),
                     license_email: "buyer@example.com".into(),
                     license_key_last4: "ABCD".into(),
+                    refresh_token: None,
                 },
                 &device_id,
             )
             .unwrap();
+        assert!(store.pro_refresh_due().unwrap());
+    }
+
+    #[test]
+    fn long_expired_pro_token_is_due_for_server_revalidation() {
+        let temp = tempfile::tempdir().unwrap();
+        let store =
+            EntitlementStore::load_with_config(temp.path(), TEST_PUBLIC_KEY, "http://127.0.0.1:9")
+                .unwrap();
+        let device_id = store.get_status().unwrap().device_id;
+        {
+            let mut state = store.state.lock().unwrap();
+            state.license_id = Some("lic_test".into());
+            state.license_email = Some("buyer@example.com".into());
+            state.license_key_last4 = Some("ABCD".into());
+            state.signed_token = Some(test_token(&device_id, now_seconds() - 180 * 24 * 60 * 60));
+            state.token_expires_at = Some("2000-01-01T00:00:00.000Z".into());
+        }
+
         assert!(store.pro_refresh_due().unwrap());
     }
 
@@ -1054,6 +1117,7 @@ mod tests {
             license_email: Some("buyer@example.com".into()),
             license_key_last4: Some("ABCD".into()),
             signed_token: Some("token".into()),
+            refresh_token_fallback: Some("refresh-token".into()),
             token_expires_at: Some("2099-01-01T00:00:00.000Z".into()),
             trial_used_count_cache: Some(1),
             trial_remaining_count_cache: Some(9),
@@ -1069,6 +1133,7 @@ mod tests {
         );
         assert!(state.license_id.is_none());
         assert!(state.signed_token.is_none());
+        assert!(state.refresh_token_fallback.is_none());
         assert_eq!(state.trial_remaining_count_cache, Some(9));
     }
 
@@ -1180,6 +1245,7 @@ mod tests {
                     token_expires_at: "2099-01-01T00:00:00.000Z".into(),
                     license_email: "buyer@example.com".into(),
                     license_key_last4: "ABCD".into(),
+                    refresh_token: None,
                 },
                 &device_id,
             )
@@ -1222,6 +1288,7 @@ mod tests {
                     token_expires_at: "2099-01-01T00:00:00.000Z".into(),
                     license_email: "buyer@example.com".into(),
                     license_key_last4: "ABCD".into(),
+                    refresh_token: None,
                 },
                 &device_id,
             )
